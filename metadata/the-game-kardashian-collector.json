@@ -1,0 +1,37 @@
+{
+  "name": "The Game - Kardashian Collector #1",
+  "description": "Ultra-rare NFT featuring The Game, the legendary collector who hooked up with all 6 Kardashians. This exclusive digital collectible represents one of the most iconic achievements in celebrity dating history.",
+  "image": "https://bodies.vercel.app/The%20Game%20-%20Kardashian%20Collector.png",
+  "external_url": "https://bodies.vercel.app",
+  "attributes": [
+    {
+      "trait_type": "Rarity",
+      "value": "Legendary"
+    },
+    {
+      "trait_type": "Achievement",
+      "value": "Kardashian Collector"
+    },
+    {
+      "trait_type": "Bodycount",
+      "value": "6 Kardashians"
+    },
+    {
+      "trait_type": "Status",
+      "value": "Wild Card"
+    },
+    {
+      "trait_type": "Collection",
+      "value": "Bodies NFT"
+    },
+    {
+      "trait_type": "Edition",
+      "value": "Limited 100"
+    }
+  ],
+  "properties": {
+    "category": "Celebrity Collectible",
+    "creator": "Bodies App",
+    "total_supply": 100
+  }
+}

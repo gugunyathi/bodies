@@ -1,0 +1,555 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground: #171717;
+  --background: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --foreground: #ededed;
+    --background: #0a0a0a;
+  }
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* Gen Z Aesthetic Enhancements */
+@layer components {
+  .swipe-card {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.85) 100%);
+    backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow: 
+      0 25px 50px rgba(0, 0, 0, 0.15),
+      0 0 0 1px rgba(255, 255, 255, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    @apply rounded-3xl;
+    transform-style: preserve-3d;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .swipe-card:hover {
+    @apply shadow-3xl;
+    transform: translateY(-2px) scale(1.02);
+  }
+  
+  .gradient-text {
+    background: linear-gradient(135deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57, #ff9ff3, #54a0ff);
+    background-size: 400% 400%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: gradientShift 4s ease infinite;
+  }
+  
+  .glass-morphism {
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+  
+  .neon-glow {
+    box-shadow: 
+      0 0 20px rgba(255, 107, 107, 0.3),
+      0 0 40px rgba(255, 107, 107, 0.2),
+      0 0 60px rgba(255, 107, 107, 0.1);
+  }
+  
+  .holographic {
+    background: linear-gradient(45deg, 
+      #ff6b6b 0%, 
+      #4ecdc4 25%, 
+      #45b7d1 50%, 
+      #96ceb4 75%, 
+      #feca57 100%);
+    background-size: 200% 200%;
+    animation: holographicShift 3s ease infinite;
+  }
+  
+  .floating {
+    animation: floating 3s ease-in-out infinite;
+  }
+  
+  .wiggle {
+    animation: wiggle 0.5s ease-in-out;
+  }
+  
+  .rainbow-border {
+    position: relative;
+    background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57);
+    background-size: 300% 300%;
+    animation: gradientShift 3s ease infinite;
+    padding: 2px;
+    border-radius: inherit;
+  }
+  
+  .rainbow-border::before {
+    content: '';
+    position: absolute;
+    inset: 2px;
+    background: white;
+    border-radius: inherit;
+    z-index: -1;
+  }
+  
+  .bounce-in {
+    animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+    animation-fill-mode: both;
+    animation-iteration-count: 1;
+  }
+  
+  .bounce-in.animation-complete {
+    animation: none;
+    transform: scale(1) translateY(0px) rotate(0deg);
+    opacity: 1;
+  }
+  
+  .pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite alternate;
+  }
+  
+  .swipe-indicator {
+    @apply absolute top-4 left-4 right-4 flex justify-between pointer-events-none;
+  }
+  
+  .rating-button {
+    @apply relative overflow-hidden rounded-full p-3 transition-all duration-300 transform active:scale-95;
+    background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.1));
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+  
+  .rating-button:hover {
+    transform: translateY(-2px) scale(1.1);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  }
+  
+  .rating-button::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300;
+  }
+  
+  .rating-button.dated::before {
+    @apply from-red-400 to-pink-500 opacity-20;
+  }
+  
+  .rating-button.hookup::before {
+    @apply from-orange-400 to-red-500 opacity-20;
+  }
+  
+  .rating-button.transactional::before {
+    @apply from-green-400 to-emerald-500 opacity-20;
+  }
+  
+  .rating-button:hover::before {
+    @apply opacity-30;
+  }
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 100% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  75% {
+    background-position: 0% 100%;
+  }
+}
+
+@keyframes holographicShift {
+  0%, 100% {
+    background-position: 0% 0%;
+    filter: hue-rotate(0deg);
+  }
+  25% {
+    background-position: 100% 0%;
+    filter: hue-rotate(90deg);
+  }
+  50% {
+    background-position: 100% 100%;
+    filter: hue-rotate(180deg);
+  }
+  75% {
+    background-position: 0% 100%;
+    filter: hue-rotate(270deg);
+  }
+}
+
+@keyframes floating {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes wiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-3deg);
+  }
+  75% {
+    transform: rotate(3deg);
+  }
+}
+
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3) translateY(50px) rotate(-10deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) translateY(-15px) rotate(5deg);
+  }
+  70% {
+    transform: scale(0.95) translateY(5px) rotate(-2deg);
+  }
+  85% {
+    transform: scale(1.02) translateY(-2px) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0px) rotate(0deg);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(255, 107, 107, 0.4),
+      0 0 40px rgba(78, 205, 196, 0.2);
+    transform: scale(1);
+  }
+  33% {
+    box-shadow: 
+      0 0 30px rgba(78, 205, 196, 0.6),
+      0 0 60px rgba(69, 183, 209, 0.3);
+    transform: scale(1.03);
+  }
+  66% {
+    box-shadow: 
+      0 0 35px rgba(69, 183, 209, 0.7),
+      0 0 70px rgba(254, 202, 87, 0.4);
+    transform: scale(1.01);
+  }
+}
+
+@keyframes swipeLeft {
+  0% {
+    transform: translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-120vw) rotate(-45deg);
+    opacity: 0;
+  }
+}
+
+@keyframes swipeRight {
+  0% {
+    transform: translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(120vw) rotate(45deg);
+    opacity: 0;
+  }
+}
+
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes slideInUp {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInDown {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes zoomIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.swipe-left {
+  animation: swipeLeft 0.3s ease-in-out forwards;
+}
+
+.swipe-right {
+  animation: swipeRight 0.3s ease-in-out forwards;
+}
+
+/* Swipe Container Stability - Prevents background frame movement */
+.swipe-container-stable {
+  position: relative;
+  transform: translateZ(0); /* Force hardware acceleration */
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.swipe-container-stable * {
+  transform-style: preserve-3d;
+}
+
+/* Ensure main app container never moves during swipes */
+.mini-app-theme {
+  position: relative;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Prevent any container shifts during card animations */
+.swipe-stack-container {
+  position: relative;
+  transform: translateZ(0);
+  will-change: auto; /* Prevent unnecessary GPU layers */
+}
+
+/* Enhanced Mobile Optimizations */
+@media (max-width: 768px) {
+  .swipe-card {
+    margin: 0 8px;
+    min-height: 70vh;
+  }
+  
+  .gradient-text {
+    font-size: 1.25rem;
+    line-height: 1.4;
+  }
+  
+  .glass-morphism {
+    margin: 0 4px;
+    padding: 0.875rem;
+  }
+  
+  /* Touch-friendly buttons */
+  button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improved tap targets */
+  .rating-button {
+    padding: 12px 16px;
+    font-size: 1.1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .swipe-card {
+    @apply mx-2;
+  }
+  
+  .rating-button {
+    @apply p-2;
+  }
+}
+
+@media (max-width: 480px) {
+  .swipe-card {
+    margin: 0 4px;
+    border-radius: 20px;
+  }
+  
+  .glass-morphism {
+    border-radius: 16px;
+    padding: 0.75rem;
+  }
+}
+
+/* Enhanced Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  margin: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #ff6b6b, #4ecdc4, #45b7d1);
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #ff5252, #26c6da, #2196f3);
+  border: 1px solid transparent;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #ff6b6b rgba(255, 255, 255, 0.1);
+}
+
+/* Utility Classes */
+.bounce-in {
+  animation: bounceIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.pulse-glow {
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+.swipe-left {
+  animation: swipeLeft 0.5s ease-in-out forwards;
+}
+
+.swipe-right {
+  animation: swipeRight 0.5s ease-in-out forwards;
+}
+
+.heartbeat {
+  animation: heartbeat 1s ease-in-out infinite;
+}
+
+.shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+.slide-in-up {
+  animation: slideInUp 0.4s ease-out;
+}
+
+.slide-in-down {
+  animation: slideInDown 0.4s ease-out;
+}
+
+.zoom-in {
+  animation: zoomIn 0.3s ease-out;
+}
+
+.floating {
+  animation: floating 3s ease-in-out infinite;
+}
+
+.wiggle {
+  animation: wiggle 0.5s ease-in-out;
+}
+
+/* Interactive States */
+.interactive:hover {
+  transform: translateY(-2px);
+  transition: transform 0.2s ease;
+}
+
+.interactive:active {
+  transform: translateY(0);
+  transition: transform 0.1s ease;
+}
+
+/* Focus States for Accessibility */
+.focus-ring:focus {
+  outline: 2px solid #ff6b6b;
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* Loading States */
+.loading {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  animation: shimmer 1.5s infinite;
+}
+
+/* Floating Animation for Relationship Circles */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
