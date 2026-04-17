@@ -36,3 +36,28 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# dev/admin scripts (contain DB connection logic, not needed in production)
+connect.js
+test-connection.js
+test-db-connection.js
+test-mongodb.js
+simple-test.js
+check-*.js
+check-*.mjs
+verify-*.js
+analyze-*.js
+populate-*.js
+deduplicate-*.js
+migrate-*.js
+update-*.js
+create-kim-kardashian*.js
+debug-*.js
+debug-*.cjs
+fix-*.cjs
+list-*.js
+backup-*.json
+profiles-check.json
+clear-*.js
+clear-*.html
+final-*.js
