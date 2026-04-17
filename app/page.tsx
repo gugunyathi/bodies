@@ -23,8 +23,10 @@ import { BodycountScore } from "./components/BodycountScore";
 import { SimpleBodycountScore } from "./components/SimpleBodycountScore";
 import { PrivacySettings, PrivacyStatus, AnonymousToggle } from "./components/PrivacySettings";
 import { FreakyScoreBubble, SpiritCelebModal } from "./components/FreakyScore";
+import { SignIn } from './components/SignIn';
 import { FREAKY_QUESTIONS, MAX_FREAKY_SCORE, getSpiritCelebrity, type SpiritCelebrity } from "../lib/freaky-questions";
 import { useNFTPurchase } from './hooks/useNFTPurchase';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import { dataPersistence } from '../lib/data-persistence';
 import { apiClient } from '../lib/api-client';
 import { Profile as DbProfile, Evidence as DbEvidence } from '../lib/models';
@@ -193,6 +195,14 @@ export default function App() {
     isConfirmed,
     writeError
   } = useNFTPurchase();
+
+  // SIWE auth — tracks whether the wallet owner has signed in
+  const { isSiweVerified, onSignedIn } = useCurrentUser();
+  const [siweVerified, setSiweVerified] = useState(false);
+  const handleSiweSignedIn = useCallback((addr: string) => {
+    onSignedIn(addr);
+    setSiweVerified(true);
+  }, [onSignedIn]);
   console.log('🎯 PAGE: useNFTPurchase hook result - collectionData:', collectionData, 'isLoading:', isNFTLoading);
   const [mixedCards, setMixedCards] = useState<CardData[]>([]);
   const [migrationStatus, setMigrationStatus] = useState({ completed: false });
@@ -834,6 +844,16 @@ export default function App() {
                         Switch to Base Network
                       </button>
                     )}
+                    <div className="px-0 pt-2 pb-1">
+                      {siweVerified ? (
+                        <div className="flex items-center space-x-1 text-xs text-green-600 font-medium">
+                          <span>✅</span>
+                          <span>Signed in with Ethereum</span>
+                        </div>
+                      ) : (
+                        <SignIn onSignedIn={handleSiweSignedIn} />
+                      )}
+                    </div>
                   </Identity>
                   <WalletDropdownDisconnect />
                 </WalletDropdown>
