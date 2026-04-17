@@ -1,7 +1,609 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAccount } from 'wagmi';
+
+interface NotificationUser {
+  address: string;
+  notificationsEnabled: boolean;
+}
+
+interface NotificationRecord {
+  id: string;
+  sentAt: string;
+  title: string;
+  body: string;
+  targetPath?: string;
+  recipients: string[];
+  sentCount: number;
+  failedCount: number;
+  broadcast: boolean;
+  richId?: string;
+}
+
+interface ActionButton {
+  label: string;
+  url: string;
+  style: 'primary' | 'secondary' | 'danger';
+}
+
+const APP_SECTIONS = [
+  { value: '', label: 'None' },
+  { value: 'swap', label: '🔄 Swap' },
+  { value: 'token', label: '🪙 Token' },
+  { value: 'leaderboard', label: '🏆 Leaderboard' },
+  { value: 'profile', label: '👤 Profile' },
+  { value: 'claim', label: '🎁 Claim' },
+  { value: 'betting', label: '🎲 Betting' },
+  { value: 'custom', label: '🔔 Custom' },
+];
+
+const ADMIN_WALLETS = (process.env.NEXT_PUBLIC_ADMIN_WALLETS || '')
+  .split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+
+function isAdmin(address?: string) {
+  if (!address) return false;
+  if (ADMIN_WALLETS.length === 0) return true;
+  return ADMIN_WALLETS.includes(address.toLowerCase());
+}
+
+function shortAddr(a: string) {
+  return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+// ─── Field wrapper ──────────────────────────────────────────────────────────
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="flex items-baseline gap-2 text-xs font-medium text-gray-400 mb-1.5">
+        {label}
+        {hint && <span className="text-gray-600 font-normal">{hint}</span>}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const inputCls = 'w-full bg-gray-800 rounded-xl px-3 py-2.5 text-sm text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500 transition-colors';
+
+export default function AdminPage() {
+  const { address, isConnected } = useAccount();
+  const admin = isAdmin(address);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [tab, setTab] = useState<'send' | 'users' | 'history'>('send');
+
+  // Users
+  const [users, setUsers] = useState<NotificationUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersCursor, setUsersCursor] = useState<string | undefined>();
+  const [hasMore, setHasMore] = useState(false);
+
+  // Send form — basic
+  const [sendMode, setSendMode] = useState<'targeted' | 'broadcast'>('targeted');
+  const [recipients, setRecipients] = useState('');
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [targetPath, setTargetPath] = useState('/');
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Send form — rich
+  const [richMode, setRichMode] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [longBody, setLongBody] = useState('');
+  const [appSection, setAppSection] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [actions, setActions] = useState<ActionButton[]>([{ label: '', url: '', style: 'primary' }]);
+
+  // History
+  const [history, setHistory] = useState<NotificationRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const optedIn = users.filter(u => u.notificationsEnabled).length;
+
+  function addAction() {
+    setActions(prev => [...prev, { label: '', url: '', style: 'primary' }]);
+  }
+  function updateAction(i: number, field: keyof ActionButton, value: string) {
+    setActions(prev => prev.map((a, idx) => idx === i ? { ...a, [field]: value } : a));
+  }
+  function removeAction(i: number) {
+    setActions(prev => prev.filter((_, idx) => idx !== i));
+  }
+
+  function showResult(result: { ok: boolean; message: string }) {
+    setSendResult(result);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setSendResult(null), 5000);
+  }
+
+  const fetchUsers = useCallback(async (cursor?: string) => {
+    setUsersLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: '50' });
+      if (cursor) params.set('cursor', cursor);
+      const res = await fetch(`/api/notify/users?${params}`);
+      const data = await res.json();
+      if (res.ok) {
+        setUsers(prev => cursor ? [...prev, ...(data.users || [])] : (data.users || []));
+        setUsersCursor(data.nextCursor);
+        setHasMore(!!data.nextCursor);
+      }
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch('/api/admin/notifications/history');
+      const data = await res.json();
+      if (res.ok) setHistory(data.history || []);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (admin) { fetchUsers(); fetchHistory(); }
+  }, [admin, fetchUsers, fetchHistory]);
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    setSending(true);
+    setSendResult(null);
+    try {
+      const recipientList = sendMode === 'broadcast'
+        ? users.filter(u => u.notificationsEnabled).map(u => u.address)
+        : recipients.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+
+      if (!recipientList.length) {
+        showResult({ ok: false, message: 'No recipients. Fetch users first or enter addresses.' });
+        return;
+      }
+
+      let resolvedPath = richMode ? '' : (targetPath || '/');
+      let richId: string | undefined;
+
+      if (richMode) {
+        const validActions = actions.filter(a => a.label && a.url);
+        const richRes = await fetch('/api/admin/notifications/rich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title, message: body,
+            imageUrl: imageUrl || undefined,
+            body: longBody || undefined,
+            appSection: appSection || undefined,
+            actions: validActions.length ? validActions : undefined,
+            expiresAt: expiresAt || undefined,
+          }),
+        });
+        const richData = await richRes.json();
+        if (!richRes.ok) { showResult({ ok: false, message: `Rich store failed: ${richData.error}` }); return; }
+        richId = richData.id;
+        resolvedPath = richData.target_path;
+      }
+
+      const res = await fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addresses: recipientList, notification: { title, body, targetPath: resolvedPath } }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showResult({ ok: true, message: `✓ Sent to ${data.sentCount}${data.failedCount ? `, ${data.failedCount} failed` : ''}` });
+        await fetch('/api/admin/notifications/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title, body, targetPath: resolvedPath, recipients: recipientList,
+            sentCount: data.sentCount, failedCount: data.failedCount,
+            broadcast: sendMode === 'broadcast', richId,
+          }),
+        });
+        fetchHistory();
+      } else {
+        showResult({ ok: false, message: data.error || 'Send failed' });
+      }
+    } catch (err) {
+      showResult({ ok: false, message: err instanceof Error ? err.message : 'Unknown error' });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function deleteHistoryItem(item: NotificationRecord) {
+    if (item.richId) await fetch(`/api/admin/notifications/rich?id=${item.richId}`, { method: 'DELETE' });
+    await fetch(`/api/admin/notifications/history?id=${item.id}`, { method: 'DELETE' });
+    setHistory(prev => prev.filter(h => h.id !== item.id));
+  }
+
+  // ── Gate screens ────────────────────────────────────────────────────────
+  if (!isConnected) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white p-6">
+      <div className="text-center space-y-3 max-w-xs w-full">
+        <div className="text-5xl">🔔</div>
+        <h1 className="text-2xl font-bold">Admin Panel</h1>
+        <p className="text-gray-400 text-sm">Connect your wallet to continue.</p>
+      </div>
+    </div>
+  );
+
+  if (!admin) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white p-6">
+      <div className="text-center space-y-3 max-w-xs w-full">
+        <div className="text-5xl">🚫</div>
+        <h1 className="text-2xl font-bold">Access Denied</h1>
+        <p className="font-mono text-xs text-gray-500 break-all bg-gray-900 rounded-xl px-3 py-2 mt-2">{address}</p>
+      </div>
+    </div>
+  );
+
+  // ── Main layout ─────────────────────────────────────────────────────────
+  const TABS = [
+    { id: 'send' as const,    label: 'Send',    badge: null },
+    { id: 'users' as const,   label: 'Users',   badge: optedIn || null },
+    { id: 'history' as const, label: 'History', badge: history.length || null },
+  ];
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white flex flex-col">
+
+      {/* ── Sticky header ─────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-20 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-4 py-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-base font-bold leading-tight truncate">Notifications Admin</h1>
+          <p className="text-xs text-gray-500 truncate hidden sm:block">
+            {shortAddr(address!)} · {optedIn} opted in
+          </p>
+        </div>
+        {/* Live stat pill */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="hidden sm:flex items-center gap-1.5 bg-green-900/40 text-green-400 text-xs px-3 py-1 rounded-full border border-green-800/50">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+            {optedIn} subscribers
+          </span>
+          <button onClick={() => { fetchUsers(); fetchHistory(); }}
+            className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-3 py-1.5 rounded-xl transition-colors border border-gray-700">
+            Refresh
+          </button>
+        </div>
+      </header>
+
+      {/* ── Tab bar ───────────────────────────────────────────────────── */}
+      <nav className="sticky top-[57px] z-10 bg-gray-950/90 backdrop-blur border-b border-gray-800 px-4">
+        <div className="flex max-w-3xl mx-auto">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`relative flex-1 py-3 text-sm font-medium transition-colors ${
+                tab === t.id ? 'text-white' : 'text-gray-500 hover:text-gray-300'
+              }`}>
+              {t.label}
+              {t.badge !== null && (
+                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                  tab === t.id ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400'
+                }`}>
+                  {t.badge}
+                </span>
+              )}
+              {tab === t.id && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500 rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* ── Content ───────────────────────────────────────────────────── */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-4 py-5 pb-24">
+
+          {/* ══ SEND TAB ══════════════════════════════════════════════ */}
+          {tab === 'send' && (
+            <form onSubmit={handleSend} className="space-y-5">
+
+              {/* Targeted / Broadcast */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-gray-900 rounded-2xl border border-gray-800">
+                {(['targeted', 'broadcast'] as const).map(mode => (
+                  <button key={mode} type="button" onClick={() => setSendMode(mode)}
+                    className={`py-2.5 rounded-xl text-sm font-medium capitalize transition-all ${
+                      sendMode === mode
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
+                        : 'text-gray-400 hover:text-white'
+                    }`}>
+                    {mode}
+                    {mode === 'broadcast' && optedIn > 0 && (
+                      <span className="ml-1.5 text-xs opacity-70">({optedIn})</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Recipients (targeted only) */}
+              {sendMode === 'targeted' && (
+                <Field label="Wallet Addresses" hint="comma or newline separated">
+                  <textarea value={recipients} onChange={e => setRecipients(e.target.value)}
+                    rows={3} placeholder="0xAbc..., 0xDef..."
+                    className={`${inputCls} resize-none`} required />
+                </Field>
+              )}
+
+              {/* Title */}
+              <Field label="Title" hint={`${title.length}/30`}>
+                <input value={title} onChange={e => setTitle(e.target.value.slice(0, 30))}
+                  placeholder="New match on Bodies!" maxLength={30}
+                  className={inputCls} required />
+              </Field>
+
+              {/* Push message */}
+              <Field label="Push message" hint={`${body.length}/200`}>
+                <textarea value={body} onChange={e => setBody(e.target.value.slice(0, 200))}
+                  rows={3} placeholder="Tap to see who liked you..." maxLength={200}
+                  className={`${inputCls} resize-none`} required />
+              </Field>
+
+              {/* Rich toggle */}
+              <div className="flex items-center justify-between bg-gray-900 rounded-2xl px-4 py-3 border border-gray-800">
+                <div>
+                  <p className="text-sm font-medium text-white">Rich notification</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Add image, long body, action buttons</p>
+                </div>
+                <button type="button" onClick={() => setRichMode(!richMode)}
+                  className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors shrink-0 ${richMode ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                  <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${richMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </div>
+
+              {/* Rich fields */}
+              {richMode && (
+                <div className="space-y-4 rounded-2xl border border-blue-900/50 bg-blue-950/20 p-4">
+                  <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Rich Content</p>
+
+                  {/* App section */}
+                  <Field label="App section">
+                    <div className="flex flex-wrap gap-2">
+                      {APP_SECTIONS.filter(s => s.value).map(s => (
+                        <button key={s.value} type="button" onClick={() => setAppSection(appSection === s.value ? '' : s.value)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                            appSection === s.value
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                          }`}>
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </Field>
+
+                  {/* Image URL */}
+                  <Field label="Hero image / GIF URL">
+                    <input value={imageUrl} onChange={e => setImageUrl(e.target.value)}
+                      placeholder="https://... (.jpg .png .gif .webp)" className={inputCls} />
+                    {imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt="preview"
+                        className="mt-2 w-full max-h-40 object-cover rounded-xl border border-gray-700" />
+                    )}
+                  </Field>
+
+                  {/* Extended body */}
+                  <Field label="Extended body" hint="shown on landing page">
+                    <textarea value={longBody} onChange={e => setLongBody(e.target.value)}
+                      rows={4} placeholder="Full details, context, instructions..."
+                      className={`${inputCls} resize-none`} />
+                  </Field>
+
+                  {/* Action buttons */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-medium text-gray-400">Action buttons</span>
+                      <button type="button" onClick={addAction}
+                        className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                        <span className="text-base leading-none">+</span> Add button
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {actions.map((action, i) => (
+                        <div key={i} className="bg-gray-900 rounded-xl p-3 border border-gray-700 space-y-2.5">
+                          <div className="flex gap-2">
+                            <input value={action.label} onChange={e => updateAction(i, 'label', e.target.value)}
+                              placeholder="Button label"
+                              className="flex-1 bg-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
+                          </div>
+                          <input value={action.url} onChange={e => updateAction(i, 'url', e.target.value)}
+                            placeholder="/leaderboard  or  https://basescan.org/..."
+                            className="w-full bg-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
+                          <div className="flex items-center justify-between">
+                            <div className="flex gap-1.5">
+                              {(['primary', 'secondary', 'danger'] as const).map(s => (
+                                <button key={s} type="button" onClick={() => updateAction(i, 'style', s)}
+                                  className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-colors ${
+                                    action.style === s
+                                      ? s === 'primary' ? 'bg-blue-600 text-white'
+                                        : s === 'secondary' ? 'bg-gray-500 text-white'
+                                        : 'bg-red-600 text-white'
+                                      : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                                  }`}>{s}</button>
+                              ))}
+                            </div>
+                            <button type="button" onClick={() => removeAction(i)}
+                              className="text-xs text-gray-600 hover:text-red-400 transition-colors">Remove</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Expiry */}
+                  <Field label="Expires at" hint="optional">
+                    <input type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)}
+                      className={inputCls} />
+                  </Field>
+
+                  <p className="text-xs text-blue-400/70">
+                    ✨ Push notification links to <code className="text-blue-300">/n/&lt;id&gt;</code> — a full rich landing page.
+                  </p>
+                </div>
+              )}
+
+              {/* Target path (simple mode) */}
+              {!richMode && (
+                <Field label="Target path" hint="where user lands on tap">
+                  <input value={targetPath} onChange={e => setTargetPath(e.target.value)}
+                    placeholder="/" className={inputCls} />
+                </Field>
+              )}
+
+              {/* Toast result */}
+              {sendResult && (
+                <div className={`text-sm px-4 py-3 rounded-xl flex items-center justify-between gap-3 ${
+                  sendResult.ok ? 'bg-green-900/40 text-green-400 border border-green-800/40' : 'bg-red-900/40 text-red-400 border border-red-800/40'
+                }`}>
+                  <span>{sendResult.message}</span>
+                  <button type="button" onClick={() => setSendResult(null)} className="opacity-60 hover:opacity-100 shrink-0">✕</button>
+                </div>
+              )}
+
+              {/* Submit — sticky on mobile */}
+              <div className="fixed bottom-0 left-0 right-0 p-4 bg-gray-950/95 backdrop-blur border-t border-gray-800 sm:static sm:bg-transparent sm:border-0 sm:p-0 sm:backdrop-blur-none z-30">
+                <button type="submit" disabled={sending}
+                  className="w-full py-3.5 rounded-2xl font-semibold text-sm bg-blue-600 hover:bg-blue-500 active:scale-[0.98] disabled:bg-gray-800 disabled:text-gray-500 transition-all shadow-lg shadow-blue-900/30">
+                  {sending
+                    ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Sending…</span>
+                    : sendMode === 'broadcast'
+                      ? `Broadcast to ${optedIn} user${optedIn !== 1 ? 's' : ''}${richMode ? ' (rich)' : ''}`
+                      : `Send${richMode ? ' rich' : ''} notification`
+                  }
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ══ USERS TAB ════════════════════════════════════════════ */}
+          {tab === 'users' && (
+            <div className="space-y-4">
+              {/* Stats row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 text-center">
+                  <div className="text-2xl font-bold text-white">{users.length}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Total users</div>
+                </div>
+                <div className="bg-gray-900 rounded-2xl p-4 border border-gray-800 text-center">
+                  <div className="text-2xl font-bold text-green-400">{optedIn}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">Notifications on</div>
+                </div>
+              </div>
+
+              {/* User list */}
+              <div className="bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+                  <span className="text-sm font-medium">Opted-in users</span>
+                  <button onClick={() => fetchUsers()} disabled={usersLoading}
+                    className="text-xs text-blue-400 hover:text-blue-300 disabled:text-gray-600 transition-colors">
+                    {usersLoading ? 'Loading…' : 'Refresh'}
+                  </button>
+                </div>
+
+                {usersLoading && users.length === 0 ? (
+                  <div className="flex items-center justify-center py-12 text-gray-600">
+                    <span className="w-5 h-5 border-2 border-gray-700 border-t-gray-400 rounded-full animate-spin" />
+                  </div>
+                ) : users.length === 0 ? (
+                  <div className="py-12 text-center text-gray-600 text-sm">No opted-in users found.</div>
+                ) : (
+                  <div className="divide-y divide-gray-800">
+                    {users.map(user => (
+                      <div key={user.address} className="flex items-center justify-between px-4 py-3">
+                        <span className="font-mono text-xs text-gray-300">{shortAddr(user.address)}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          user.notificationsEnabled ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-500'
+                        }`}>
+                          {user.notificationsEnabled ? 'On' : 'Off'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {hasMore && (
+                  <div className="px-4 py-3 border-t border-gray-800">
+                    <button onClick={() => fetchUsers(usersCursor)} disabled={usersLoading}
+                      className="w-full py-2 text-xs text-blue-400 hover:text-blue-300 disabled:text-gray-600 border border-gray-700 rounded-xl transition-colors">
+                      Load more
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ══ HISTORY TAB ════════════════════════════════════════ */}
+          {tab === 'history' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-400">{history.length} notification{history.length !== 1 ? 's' : ''} sent</span>
+                <button onClick={fetchHistory} disabled={historyLoading}
+                  className="text-xs text-blue-400 hover:text-blue-300 disabled:text-gray-600 transition-colors">
+                  {historyLoading ? 'Loading…' : 'Refresh'}
+                </button>
+              </div>
+
+              {historyLoading && history.length === 0 ? (
+                <div className="flex items-center justify-center py-16 text-gray-600">
+                  <span className="w-5 h-5 border-2 border-gray-700 border-t-gray-400 rounded-full animate-spin" />
+                </div>
+              ) : history.length === 0 ? (
+                <div className="py-16 text-center text-gray-600 text-sm">No notifications sent yet.</div>
+              ) : (
+                history.map(item => (
+                  <div key={item.id} className="bg-gray-900 rounded-2xl p-4 border border-gray-800">
+                    {/* Title row */}
+                    <div className="flex items-start gap-2 mb-2">
+                      <span className="font-semibold text-sm text-white flex-1 min-w-0 truncate">{item.title}</span>
+                      <button onClick={() => deleteHistoryItem(item)}
+                        className="shrink-0 text-gray-600 hover:text-red-400 transition-colors text-sm leading-none p-1 -mr-1 -mt-0.5"
+                        title="Delete">✕</button>
+                    </div>
+                    {/* Message preview */}
+                    <p className="text-xs text-gray-400 mb-3 line-clamp-2">{item.body}</p>
+                    {/* Tags */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        item.broadcast ? 'bg-purple-900/50 text-purple-300' : 'bg-blue-900/50 text-blue-300'
+                      }`}>
+                        {item.broadcast ? 'Broadcast' : 'Targeted'}
+                      </span>
+                      {item.richId && (
+                        <a href={`/n/${item.richId}`} target="_blank" rel="noopener noreferrer"
+                          className="text-xs px-2 py-0.5 rounded-full bg-orange-900/50 text-orange-300 hover:text-orange-200 font-medium">
+                          ✨ Rich ↗
+                        </a>
+                      )}
+                    </div>
+                    {/* Stats */}
+                    <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+                      <span>{new Date(item.sentAt).toLocaleString()}</span>
+                      <span className="text-green-500 font-medium">✓ {item.sentCount}</span>
+                      {item.failedCount > 0 && <span className="text-red-400 font-medium">✗ {item.failedCount}</span>}
+                      {item.targetPath && (
+                        <span className="font-mono text-gray-600 truncate max-w-[140px]">{item.targetPath}</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+        </div>
+      </main>
+    </div>
+  );
+}
+
 
 interface NotificationUser {
   address: string;
