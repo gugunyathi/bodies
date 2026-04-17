@@ -9,39 +9,39 @@ export type NotificationDetails = {
 const notificationServiceKey =
   process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME ?? "minikit";
 
-function getUserNotificationDetailsKey(fid: number): string {
-  return `${notificationServiceKey}:user:${fid}`;
+function getUserNotificationDetailsKey(address: string): string {
+  return `${notificationServiceKey}:user:${address.toLowerCase()}`;
 }
 
 export async function getUserNotificationDetails(
-  fid: number,
+  address: string,
 ): Promise<NotificationDetails | null> {
   if (!redis) {
     return null;
   }
 
   return await redis.get<NotificationDetails>(
-    getUserNotificationDetailsKey(fid),
+    getUserNotificationDetailsKey(address),
   );
 }
 
 export async function setUserNotificationDetails(
-  fid: number,
+  address: string,
   notificationDetails: NotificationDetails,
 ): Promise<void> {
   if (!redis) {
     return;
   }
 
-  await redis.set(getUserNotificationDetailsKey(fid), notificationDetails);
+  await redis.set(getUserNotificationDetailsKey(address), notificationDetails);
 }
 
 export async function deleteUserNotificationDetails(
-  fid: number,
+  address: string,
 ): Promise<void> {
   if (!redis) {
     return;
   }
 
-  await redis.del(getUserNotificationDetailsKey(fid));
+  await redis.del(getUserNotificationDetailsKey(address));
 }

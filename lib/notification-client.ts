@@ -20,18 +20,18 @@ type SendFrameNotificationResult =
   | { state: "success" };
 
 export async function sendFrameNotification({
-  fid,
+  address,
   title,
   body,
   notificationDetails,
 }: {
-  fid: number;
+  address: string;
   title: string;
   body: string;
   notificationDetails?: NotificationDetails | null;
 }): Promise<SendFrameNotificationResult> {
   if (!notificationDetails) {
-    notificationDetails = await getUserNotificationDetails(fid);
+    notificationDetails = await getUserNotificationDetails(address);
   }
   if (!notificationDetails) {
     return { state: "no_token" };
