@@ -346,23 +346,42 @@ export default function AdminPage() {
                       <label className="text-xs text-gray-400">Action buttons</label>
                       <button type="button" onClick={addAction} className="text-xs text-blue-400 hover:text-blue-300">+ Add</button>
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {actions.map((action, i) => (
-                        <div key={i} className="flex gap-2 items-center">
-                          <input value={action.label} onChange={e => updateAction(i, 'label', e.target.value)}
-                            placeholder="Label"
-                            className="flex-1 bg-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
-                          <input value={action.url} onChange={e => updateAction(i, 'url', e.target.value)}
-                            placeholder="/path or https://..."
-                            className="flex-[2] bg-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
-                          <select value={action.style} onChange={e => updateAction(i, 'style', e.target.value)}
-                            className="bg-gray-800 rounded-xl px-2 py-2 text-xs text-white border border-gray-700 focus:outline-none focus:border-blue-500">
-                            <option value="primary">Primary</option>
-                            <option value="secondary">Secondary</option>
-                            <option value="danger">Danger</option>
-                          </select>
-                          <button type="button" onClick={() => removeAction(i)}
-                            className="text-gray-600 hover:text-red-400 transition-colors">✕</button>
+                        <div key={i} className="bg-gray-900/60 rounded-xl p-3 border border-gray-700 space-y-2">
+                          {/* Row 1: label + URL */}
+                          <div className="flex gap-2">
+                            <input value={action.label} onChange={e => updateAction(i, 'label', e.target.value)}
+                              placeholder="Button label"
+                              className="flex-1 bg-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
+                            <input value={action.url} onChange={e => updateAction(i, 'url', e.target.value)}
+                              placeholder="/leaderboard or https://..."
+                              className="flex-[2] bg-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
+                          </div>
+                          {/* Row 2: style picker + delete */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">Style:</span>
+                            <div className="flex gap-1.5">
+                              {(['primary', 'secondary', 'danger'] as const).map(s => (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => updateAction(i, 'style', s)}
+                                  className={`px-3 py-1 rounded-lg text-xs font-medium capitalize transition-colors ${
+                                    action.style === s
+                                      ? s === 'primary' ? 'bg-blue-600 text-white'
+                                        : s === 'secondary' ? 'bg-gray-500 text-white'
+                                        : 'bg-red-600 text-white'
+                                      : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                                  }`}
+                                >
+                                  {s}
+                                </button>
+                              ))}
+                            </div>
+                            <button type="button" onClick={() => removeAction(i)}
+                              className="ml-auto text-gray-600 hover:text-red-400 transition-colors text-xs">Remove</button>
+                          </div>
                         </div>
                       ))}
                     </div>
