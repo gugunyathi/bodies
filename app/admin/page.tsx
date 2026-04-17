@@ -38,7 +38,7 @@ const APP_SECTIONS = [
   { value: 'custom', label: '🔔 Custom' },
 ];
 
-const ADMIN_WALLETS = (process.env.NEXT_PUBLIC_ADMIN_WALLETS || '').toLowerCase().split(',').filter(Boolean);
+const ADMIN_WALLETS = (process.env.NEXT_PUBLIC_ADMIN_WALLETS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
 function isAdmin(address?: string) {
   if (!address) return false;
