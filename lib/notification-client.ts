@@ -1,63 +1,54 @@
-import { getUserNotificationDetails, type NotificationDetails } from "@/lib/notification";
+const BASE_API_URL = "https://dashboard.base.org/api/v1";
+const appUrl = process.env.NEXT_PUBLIC_URL || process.env.NEXT_PUBLIC_APP_URL || "";
+const apiKey = process.env.BASE_API_KEY || "";
 
-const appUrl = process.env.NEXT_PUBLIC_URL || "";
+export type SendNotificationResult =
+  | { state: "success"; sentCount: number; failedCount: number }
+  | { state: "error"; error: string }
+  | { state: "no_api_key" };
 
-type SendNotificationRequest = {
-  notificationId: string;
-  title: string;
-  body: string;
-  targetUrl: string;
-  tokens: string[];
-};
-
-type SendFrameNotificationResult =
-  | {
-      state: "error";
-      error: unknown;
-    }
-  | { state: "no_token" }
-  | { state: "rate_limit" }
-  | { state: "success" };
-
+/**
+ * Send a notification to one or more wallet addresses via the Base Dashboard API.
+ */
 export async function sendFrameNotification({
   address,
+  addresses,
   title,
   body,
-  notificationDetails,
+  targetPath,
 }: {
-  address: string;
+  address?: string;
+  addresses?: string[];
   title: string;
   body: string;
-  notificationDetails?: NotificationDetails | null;
-}): Promise<SendFrameNotificationResult> {
-  if (!notificationDetails) {
-    notificationDetails = await getUserNotificationDetails(address);
-  }
-  if (!notificationDetails) {
-    return { state: "no_token" };
-  }
+  targetPath?: string;
+}): Promise<SendNotificationResult> {
+  if (!apiKey) return { state: "no_api_key" };
 
-  const response = await fetch(notificationDetails.url, {
+  const walletAddresses = addresses ?? (address ? [address] : []);
+  if (!walletAddresses.length) return { state: "error", error: "No addresses provided" };
+
+  const payload: Record<string, unknown> = {
+    app_url: appUrl,
+    wallet_addresses: walletAddresses,
+    title: title.slice(0, 30),
+    message: body.slice(0, 200),
+  };
+  if (targetPath) payload.target_path = targetPath;
+
+  const response = await fetch(`${BASE_API_URL}/notifications/send`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-api-key": apiKey,
     },
-    body: JSON.stringify({
-      notificationId: crypto.randomUUID(),
-      title,
-      body,
-      targetUrl: appUrl,
-      tokens: [notificationDetails.token],
-    } satisfies SendNotificationRequest),
+    body: JSON.stringify(payload),
   });
 
   const responseJson = await response.json();
 
-  if (response.status === 200) {
-    if (responseJson?.result?.rateLimitedTokens?.length) {
-      return { state: "rate_limit" };
-    }
-    return { state: "success" };
+  if (response.ok) {
+    return { state: "success", sentCount: responseJson.sentCount ?? 0, failedCount: responseJson.failedCount ?? 0 };
   }
 
   return { state: "error", error: responseJson };
