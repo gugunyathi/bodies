@@ -18,7 +18,25 @@ interface NotificationRecord {
   sentCount: number;
   failedCount: number;
   broadcast: boolean;
+  richId?: string;
 }
+
+interface ActionButton {
+  label: string;
+  url: string;
+  style: 'primary' | 'secondary' | 'danger';
+}
+
+const APP_SECTIONS = [
+  { value: '', label: 'None' },
+  { value: 'swap', label: '🔄 Swap' },
+  { value: 'token', label: '🪙 Token' },
+  { value: 'leaderboard', label: '🏆 Leaderboard' },
+  { value: 'profile', label: '👤 Profile' },
+  { value: 'claim', label: '🎁 Claim' },
+  { value: 'betting', label: '🎲 Betting' },
+  { value: 'custom', label: '🔔 Custom' },
+];
 
 const ADMIN_WALLETS = (process.env.NEXT_PUBLIC_ADMIN_WALLETS || '').toLowerCase().split(',').filter(Boolean);
 
@@ -46,6 +64,24 @@ export default function AdminPage() {
   const [targetPath, setTargetPath] = useState('/');
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Rich notification state
+  const [richMode, setRichMode] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [longBody, setLongBody] = useState('');
+  const [appSection, setAppSection] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [actions, setActions] = useState<ActionButton[]>([{ label: '', url: '', style: 'primary' }]);
+
+  function addAction() {
+    setActions(prev => [...prev, { label: '', url: '', style: 'primary' }]);
+  }
+  function updateAction(i: number, field: keyof ActionButton, value: string) {
+    setActions(prev => prev.map((a, idx) => idx === i ? { ...a, [field]: value } : a));
+  }
+  function removeAction(i: number) {
+    setActions(prev => prev.filter((_, idx) => idx !== i));
+  }
 
   // History state
   const [history, setHistory] = useState<NotificationRecord[]>([]);
@@ -102,25 +138,51 @@ export default function AdminPage() {
         return;
       }
 
+      // If rich mode, store rich payload first and use returned target_path
+      let resolvedTargetPath = richMode ? '' : (targetPath || '/');
+      let richId: string | undefined;
+
+      if (richMode) {
+        const validActions = actions.filter(a => a.label && a.url);
+        const richRes = await fetch('/api/admin/notifications/rich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title, message: body,
+            imageUrl: imageUrl || undefined,
+            body: longBody || undefined,
+            appSection: appSection || undefined,
+            actions: validActions.length ? validActions : undefined,
+            expiresAt: expiresAt || undefined,
+          }),
+        });
+        const richData = await richRes.json();
+        if (!richRes.ok) {
+          setSendResult({ ok: false, message: `Rich store failed: ${richData.error}` });
+          return;
+        }
+        richId = richData.id;
+        resolvedTargetPath = richData.target_path; // /n/<uuid>
+      }
+
       const res = await fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           addresses: recipientList,
-          notification: { title, body, targetPath: targetPath || '/' },
+          notification: { title, body, targetPath: resolvedTargetPath },
         }),
       });
       const data = await res.json();
       if (res.ok) {
         setSendResult({ ok: true, message: `Sent ${data.sentCount}, failed ${data.failedCount}` });
-        // Save to history
         await fetch('/api/admin/notifications/history', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            title, body, targetPath, recipients: recipientList,
+            title, body, targetPath: resolvedTargetPath, recipients: recipientList,
             sentCount: data.sentCount, failedCount: data.failedCount,
-            broadcast: sendMode === 'broadcast',
+            broadcast: sendMode === 'broadcast', richId,
           }),
         });
         fetchHistory();
@@ -134,9 +196,12 @@ export default function AdminPage() {
     }
   }
 
-  async function deleteHistoryItem(id: string) {
-    await fetch(`/api/admin/notifications/history?id=${id}`, { method: 'DELETE' });
-    setHistory(prev => prev.filter(h => h.id !== id));
+  async function deleteHistoryItem(item: NotificationRecord) {
+    if (item.richId) {
+      await fetch(`/api/admin/notifications/rich?id=${item.richId}`, { method: 'DELETE' });
+    }
+    await fetch(`/api/admin/notifications/history?id=${item.id}`, { method: 'DELETE' });
+    setHistory(prev => prev.filter(h => h.id !== item.id));
   }
 
   if (!isConnected) {
@@ -234,22 +299,107 @@ export default function AdminPage() {
                 <div className="text-right text-xs text-gray-600 mt-0.5">{body.length}/200</div>
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Target Path</label>
-                <input
-                  value={targetPath}
-                  onChange={e => setTargetPath(e.target.value)}
-                  placeholder="/"
-                  className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500"
-                />
+              {/* Rich mode toggle */}
+              <div className="flex items-center gap-3 pt-1">
+                <button type="button" onClick={() => setRichMode(!richMode)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${richMode ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                  <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${richMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+                <span className="text-sm text-gray-300 font-medium">Rich notification</span>
+                <span className="text-xs text-gray-500">(image, links, actions)</span>
               </div>
+
+              {richMode ? (
+                <div className="space-y-4 bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+                  {/* App section */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">App section</label>
+                    <select value={appSection} onChange={e => setAppSection(e.target.value)}
+                      className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white border border-gray-700 focus:outline-none focus:border-blue-500">
+                      {APP_SECTIONS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Image / GIF URL */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Hero image / GIF URL</label>
+                    <input value={imageUrl} onChange={e => setImageUrl(e.target.value)}
+                      placeholder="https://... (.jpg .png .gif .webp)"
+                      className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
+                    {imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageUrl} alt="preview" className="mt-2 rounded-xl max-h-28 object-cover border border-gray-700" />
+                    )}
+                  </div>
+
+                  {/* Long body */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Extended body <span className="text-gray-600">(shown on landing page)</span></label>
+                    <textarea value={longBody} onChange={e => setLongBody(e.target.value)}
+                      rows={3} placeholder="Full details, instructions, context..."
+                      className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500 resize-none" />
+                  </div>
+
+                  {/* Action buttons */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs text-gray-400">Action buttons</label>
+                      <button type="button" onClick={addAction} className="text-xs text-blue-400 hover:text-blue-300">+ Add</button>
+                    </div>
+                    <div className="space-y-2">
+                      {actions.map((action, i) => (
+                        <div key={i} className="flex gap-2 items-center">
+                          <input value={action.label} onChange={e => updateAction(i, 'label', e.target.value)}
+                            placeholder="Label"
+                            className="flex-1 bg-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
+                          <input value={action.url} onChange={e => updateAction(i, 'url', e.target.value)}
+                            placeholder="/path or https://..."
+                            className="flex-[2] bg-gray-800 rounded-xl px-3 py-2 text-xs text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500" />
+                          <select value={action.style} onChange={e => updateAction(i, 'style', e.target.value)}
+                            className="bg-gray-800 rounded-xl px-2 py-2 text-xs text-white border border-gray-700 focus:outline-none focus:border-blue-500">
+                            <option value="primary">Primary</option>
+                            <option value="secondary">Secondary</option>
+                            <option value="danger">Danger</option>
+                          </select>
+                          <button type="button" onClick={() => removeAction(i)}
+                            className="text-gray-600 hover:text-red-400 transition-colors">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-600 mt-1">Use /leaderboard, /betting or full https:// URLs</p>
+                  </div>
+
+                  {/* Expiry */}
+                  <div>
+                    <label className="block text-xs text-gray-400 mb-1">Expires at <span className="text-gray-600">(optional)</span></label>
+                    <input type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)}
+                      className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white border border-gray-700 focus:outline-none focus:border-blue-500" />
+                  </div>
+
+                  <p className="text-xs text-gray-500">
+                    ✨ Users tap the push notification and land on <code className="text-blue-400">/n/&lt;id&gt;</code> showing full rich content.
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">Target Path</label>
+                  <input
+                    value={targetPath}
+                    onChange={e => setTargetPath(e.target.value)}
+                    placeholder="/"
+                    className="w-full bg-gray-800 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 border border-gray-700 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={sending}
                 className="w-full py-2.5 rounded-xl font-semibold text-sm bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 transition-colors"
               >
-                {sending ? 'Sending...' : sendMode === 'broadcast' ? `Broadcast to ${users.filter(u => u.notificationsEnabled).length} users` : 'Send'}
+                {sending ? 'Sending...' : sendMode === 'broadcast'
+                  ? `Broadcast to ${users.filter(u => u.notificationsEnabled).length} users${richMode ? ' (rich)' : ''}`
+                  : `Send${richMode ? ' rich' : ''} notification`}
               </button>
 
               {sendResult && (
@@ -332,8 +482,12 @@ export default function AdminPage() {
                       <span className="font-semibold text-sm text-white truncate">{item.title}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${item.broadcast ? 'bg-purple-900/50 text-purple-300' : 'bg-blue-900/50 text-blue-300'}`}>
                         {item.broadcast ? 'Broadcast' : 'Targeted'}
-                      </span>
-                    </div>
+                      </span>                        {item.richId && (
+                          <a href={`/n/${item.richId}`} target="_blank" rel="noopener noreferrer"
+                            className="text-xs px-2 py-0.5 rounded-full bg-orange-900/50 text-orange-300 hover:text-orange-200 shrink-0">
+                            ✨ Rich ↗
+                          </a>
+                        )}                    </div>
                     <p className="text-xs text-gray-400 mb-2 line-clamp-2">{item.body}</p>
                     <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                       <span>{new Date(item.sentAt).toLocaleString()}</span>
@@ -343,7 +497,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => deleteHistoryItem(item.id)}
+                    onClick={() => deleteHistoryItem(item)}
                     className="text-gray-600 hover:text-red-400 transition-colors text-xs shrink-0 mt-1"
                     title="Delete"
                   >
