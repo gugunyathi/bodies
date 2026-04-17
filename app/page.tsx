@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useMiniKit,
-  useAddFrame,
-  useOpenUrl,
-} from "@coinbase/onchainkit/minikit";
-import { sdk } from "@farcaster/frame-sdk";
-import { sdk as miniappSdk } from "@farcaster/miniapp-sdk";
+import { useAccount } from 'wagmi';
 import {
   Name,
   Identity,
@@ -28,6 +22,8 @@ import { ProfileManager } from './components/ProfileManager';
 import { BodycountScore } from "./components/BodycountScore";
 import { SimpleBodycountScore } from "./components/SimpleBodycountScore";
 import { PrivacySettings, PrivacyStatus, AnonymousToggle } from "./components/PrivacySettings";
+import { FreakyScoreBubble, SpiritCelebModal } from "./components/FreakyScore";
+import { FREAKY_QUESTIONS, MAX_FREAKY_SCORE, getSpiritCelebrity, type SpiritCelebrity } from "../lib/freaky-questions";
 import { useNFTPurchase } from './hooks/useNFTPurchase';
 import { dataPersistence } from '../lib/data-persistence';
 import { apiClient } from '../lib/api-client';
@@ -150,8 +146,6 @@ function applyPriorityOrdering(profiles: Profile[]): Profile[] {
 export default function App() {
   console.log('🎯 COMPONENT: App component rendering started');
   
-  const { setFrameReady, isFrameReady, context } = useMiniKit();
-  const [frameAdded, setFrameAdded] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [currentProfileId, setCurrentProfileId] = useState<string | undefined>();
@@ -387,41 +381,9 @@ export default function App() {
     }
   }, [profiles, collectionData, mixCardsWithNFTs]);
 
-  // Call sdk.actions.ready() after app is fully loaded
-  useEffect(() => {
-    const initializeApp = async () => {
-      if (isMounted && profiles.length > 0) {
-        try {
-          console.log('🚀 SDK: Calling sdk.actions.ready() to hide splash screen');
-          await miniappSdk.actions.ready();
-          console.log('🚀 SDK: sdk.actions.ready() called successfully');
-          
-          // Log to server terminal
-          fetch('/api/debug-log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: '🚀 CLIENT: sdk.actions.ready() called successfully' })
-          }).catch(() => {});
-        } catch (error) {
-          console.error('🚀 SDK: Error calling sdk.actions.ready():', error);
-          
-          // Log error to server terminal
-          fetch('/api/debug-log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: '🚀 CLIENT: Error calling sdk.actions.ready(): ' + error })
-          }).catch(() => {});
-        }
-      }
-    };
-
-    initializeApp();
-  }, [isMounted, profiles.length]);
-
   // Duplicate state declarations removed - all states are declared at the top
 
-  const addFrame = useAddFrame();
-  const openUrl = useOpenUrl();
+  const openUrl = useCallback((url: string) => { window.open(url, '_blank', 'noopener,noreferrer'); }, []);
   // const handleCreateProfile = async (profileData: Omit<Profile, 'id' | 'createdAt' | 'isVerified' | 'bodycount' | 'evidence'>) => {
   //   try {
   //     setIsLoading(true);
@@ -589,6 +551,44 @@ export default function App() {
   const [showAddProfileForm, setShowAddProfileForm] = useState(false);
   const [profileManagerProfiles, setProfileManagerProfiles] = useState<Profile[]>([]);
 
+  // ── Freaky Score state ────────────────────────────────────────────────────
+  const [freakyAnswers, setFreakyAnswers] = useState<Record<string, boolean>>(() => {
+    if (typeof window !== 'undefined') {
+      try { return JSON.parse(localStorage.getItem('freaky_answers') || '{}'); } catch { return {}; }
+    }
+    return {};
+  });
+  const [showSpiritModal, setShowSpiritModal] = useState(false);
+  const [savedSpirit, setSavedSpirit] = useState<SpiritCelebrity | null>(() => {
+    if (typeof window !== 'undefined') {
+      try { return JSON.parse(localStorage.getItem('freaky_spirit') || 'null'); } catch { return null; }
+    }
+    return null;
+  });
+
+  const freakyScore = FREAKY_QUESTIONS.reduce((sum, q) => {
+    return freakyAnswers[q.id] === true ? sum + q.points : sum;
+  }, 0);
+
+  const handleQuestionAnswer = useCallback((questionId: string, answer: boolean) => {
+    setFreakyAnswers(prev => {
+      const updated = { ...prev, [questionId]: answer };
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('freaky_answers', JSON.stringify(updated));
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleSaveSpirit = useCallback((celebrity: SpiritCelebrity) => {
+    setSavedSpirit(celebrity);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('freaky_spirit', JSON.stringify(celebrity));
+    }
+    setShowSpiritModal(false);
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────
+
   console.log('🚀 PAGE: About to declare useEffect for initializeData');
   
   const loadProfileDetails = async (profile: Profile) => {
@@ -654,26 +654,7 @@ export default function App() {
     }
   };
 
-  React.useEffect(() => {
-    // Call Farcaster Frame SDK ready method
-    sdk.actions.ready();
-    
-    // Also call MiniKit setFrameReady for OnchainKit compatibility
-    setFrameReady();
-    
-    // Also set a timeout as fallback
-    const timeout = setTimeout(() => {
-      sdk.actions.ready();
-      setFrameReady();
-    }, 1000);
-    
-    return () => clearTimeout(timeout);
-  }, []);
-
-  // Monitor frame ready state changes
-  React.useEffect(() => {
-    // Frame ready state changed
-  }, [isFrameReady]);
+  // App initialisation (no Farcaster splash screen needed)
 
 
   
@@ -810,38 +791,6 @@ export default function App() {
 
 
 
-  const handleAddFrame = useCallback(async () => {
-    const frameAdded = await addFrame();
-    setFrameAdded(Boolean(frameAdded));
-  }, [addFrame]);
-
-  const saveFrameButton = useMemo(() => {
-    if (context && !context.client.added) {
-      return (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleAddFrame}
-          className="text-[var(--app-accent)] p-4"
-          icon={<Icon name="plus" size="sm" />}
-        >
-          Save Frame
-        </Button>
-      );
-    }
-
-    if (frameAdded) {
-      return (
-        <div className="flex items-center space-x-1 text-sm font-medium text-[#0052FF] animate-fade-out">
-          <Icon name="check" size="sm" className="text-[#0052FF]" />
-          <span>Saved</span>
-        </div>
-      );
-    }
-
-    return null;
-  }, [context, frameAdded, handleAddFrame]);
-
   return (
     <div className="flex flex-col min-h-screen font-sans text-[var(--app-foreground)] mini-app-theme bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50">
       <div className="w-full max-w-md mx-auto px-4 py-3 swipe-container-stable">
@@ -914,7 +863,6 @@ export default function App() {
                 <span>Synced</span>
               </div>
             )}
-            {saveFrameButton}
           </div>
         </header>
 
@@ -987,6 +935,7 @@ export default function App() {
                   onSwipe={handleSwipe}
                   onRate={handleRate}
                   onBuyNFT={handleNFTPurchase}
+                  onQuestionAnswer={handleQuestionAnswer}
                   isWalletConnected={isWalletConnected}
                   isNFTLoading={isNFTLoading}
                   walletType={walletType}
@@ -1120,6 +1069,56 @@ export default function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Freaky Score card in Privacy tab */}
+              <div className="bg-gray-900 rounded-2xl p-5 shadow-lg border border-pink-500/20">
+                <h3 className="font-bold text-white mb-1 flex items-center gap-2">
+                  <span>🫦</span> Your Freaky Score
+                </h3>
+                <p className="text-white/40 text-xs mb-4">
+                  Based on {Object.keys(freakyAnswers).length}/{FREAKY_QUESTIONS.length} questions answered
+                </p>
+
+                {Object.keys(freakyAnswers).length === 0 ? (
+                  <div className="text-center py-4">
+                    <p className="text-white/40 text-sm">Swipe through the deck to answer Freaky Check questions!</p>
+                    <p className="text-white/20 text-xs mt-1">They appear every 4 cards 🔥</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 mb-3">
+                      <span className="text-4xl font-black text-pink-400">{freakyScore}</span>
+                      <span className="text-white/50 text-sm">/ {MAX_FREAKY_SCORE} pts</span>
+                    </div>
+                    {savedSpirit ? (
+                      <div className="flex items-center gap-3 bg-white/5 rounded-xl p-3 border border-white/10">
+                        <span className="text-3xl">{savedSpirit.emoji}</span>
+                        <div>
+                          <p className="text-white/40 text-[10px] uppercase tracking-wide">Spirit Celebrity</p>
+                          <p className="text-white font-bold">{savedSpirit.name}</p>
+                          <p className="text-white/50 text-xs">{savedSpirit.title}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSavedSpirit(null);
+                            if (typeof window !== 'undefined') localStorage.removeItem('freaky_spirit');
+                          }}
+                          className="ml-auto text-white/30 hover:text-white/60 text-lg"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowSpiritModal(true)}
+                        className="w-full py-2 rounded-xl bg-gradient-to-r from-pink-600 to-purple-600 text-white text-sm font-bold"
+                      >
+                        ✨ Reveal Your Spirit Celebrity
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           )}
         </main>
@@ -1155,6 +1154,25 @@ export default function App() {
             dataPersistence.setPrivacySettings(newSettings as unknown as Record<string, unknown>);
           }}
           currentSettings={privacySettings}
+        />
+      )}
+
+      {/* Freaky Score floating bubble */}
+      <FreakyScoreBubble
+        score={freakyScore}
+        totalAnswered={Object.keys(freakyAnswers).length}
+        totalQuestions={FREAKY_QUESTIONS.length}
+        onShowResult={() => setShowSpiritModal(true)}
+      />
+
+      {/* Spirit Celebrity modal */}
+      {showSpiritModal && (
+        <SpiritCelebModal
+          score={freakyScore}
+          totalAnswered={Object.keys(freakyAnswers).length}
+          answers={freakyAnswers}
+          onClose={() => setShowSpiritModal(false)}
+          onSaveToProfile={handleSaveSpirit}
         />
       )}
       

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import {
   Wallet,
   ConnectWallet,
@@ -29,7 +28,6 @@ import { useCurrentUser } from '../../hooks/useCurrentUser';
 export default function WalletTestPage() {
   const { address, isConnected } = useAccount();
   const { userId, walletAddress, isAuthenticated } = useCurrentUser();
-  const { isFrameReady } = useMiniKit();
   const [connectionStatus, setConnectionStatus] = useState<string>('Not connected');
   const [apiTestResult, setApiTestResult] = useState<string>('');
   const [transactionTest, setTransactionTest] = useState<string>('');
@@ -87,12 +85,12 @@ export default function WalletTestPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Wallet Integration Test</h1>
         
-        {/* Frame Status */}
+        {/* Connection Status */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4">Frame Status</h2>
+          <h2 className="text-xl font-semibold mb-4">Connection Status</h2>
           <p className="text-gray-700">
-            Frame Ready: <span className={isFrameReady ? 'text-green-600' : 'text-red-600'}>
-              {isFrameReady ? 'Yes' : 'No'}
+            Wallet Connected: <span className={isConnected ? 'text-green-600' : 'text-red-600'}>
+              {isConnected ? 'Yes' : 'No'}
             </span>
           </p>
         </div>

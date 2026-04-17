@@ -1,14 +1,12 @@
 // Enhanced wallet connection hook with wallet type detection
 
 import { useAccount, useConnect, useDisconnect, useSwitchChain, useAccountEffect } from 'wagmi';
-import { useMiniKit } from '@coinbase/onchainkit/minikit';
 import { useEffect, useState, useMemo } from 'react';
 import { base } from 'wagmi/chains';
 
 export type WalletType = 
   | 'coinbase_wallet' 
   | 'metamask' 
-  | 'farcaster_wallet'
   | 'base_account'
   | 'unknown';
 
@@ -35,7 +33,6 @@ export function useWalletConnection(): WalletConnectionState & {
   const { connect, connectors, isPending: isConnecting, error: connectError } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain, isPending: isSwitching } = useSwitchChain();
-  const { isFrameReady: isMiniKitInstalled } = useMiniKit();
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [previousAddress, setPreviousAddress] = useState<string | undefined>(address);
 
@@ -60,13 +57,8 @@ export function useWalletConnection(): WalletConnectionState & {
       return 'metamask';
     }
     
-    // Check for Farcaster Wallet (in MiniKit context)
-    if (isMiniKitInstalled && (connectorId.includes('farcaster') || connectorName.includes('farcaster'))) {
-      return 'farcaster_wallet';
-    }
-    
     return 'unknown';
-  }, [connector, isMiniKitInstalled]);
+  }, [connector]);
 
   // Check if connected to correct network (Base)
   const isCorrectNetwork = useMemo(() => {
@@ -146,8 +138,6 @@ export function useWalletConnection(): WalletConnectionState & {
         return 'Coinbase Wallet';
       case 'metamask':
         return 'MetaMask';
-      case 'farcaster_wallet':
-        return 'Farcaster Wallet';
       default:
         return connector?.name || 'Unknown Wallet';
     }

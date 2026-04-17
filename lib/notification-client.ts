@@ -1,11 +1,14 @@
-import {
-  MiniAppNotificationDetails,
-  type SendNotificationRequest,
-  sendNotificationResponseSchema,
-} from "@farcaster/frame-sdk";
-import { getUserNotificationDetails } from "@/lib/notification";
+import { getUserNotificationDetails, type NotificationDetails } from "@/lib/notification";
 
 const appUrl = process.env.NEXT_PUBLIC_URL || "";
+
+type SendNotificationRequest = {
+  notificationId: string;
+  title: string;
+  body: string;
+  targetUrl: string;
+  tokens: string[];
+};
 
 type SendFrameNotificationResult =
   | {
@@ -25,7 +28,7 @@ export async function sendFrameNotification({
   fid: number;
   title: string;
   body: string;
-  notificationDetails?: MiniAppNotificationDetails | null;
+  notificationDetails?: NotificationDetails | null;
 }): Promise<SendFrameNotificationResult> {
   if (!notificationDetails) {
     notificationDetails = await getUserNotificationDetails(fid);
@@ -51,15 +54,9 @@ export async function sendFrameNotification({
   const responseJson = await response.json();
 
   if (response.status === 200) {
-    const responseBody = sendNotificationResponseSchema.safeParse(responseJson);
-    if (responseBody.success === false) {
-      return { state: "error", error: responseBody.error.errors };
-    }
-
-    if (responseBody.data.result.rateLimitedTokens.length) {
+    if (responseJson?.result?.rateLimitedTokens?.length) {
       return { state: "rate_limit" };
     }
-
     return { state: "success" };
   }
 

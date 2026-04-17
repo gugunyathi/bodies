@@ -2,11 +2,7 @@
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import {
-  useMiniKit,
-  useAddFrame,
-  useOpenUrl,
-} from "@coinbase/onchainkit/minikit";
+// useOpenUrl replaced with window.open
 import {
   Name,
   Identity,
@@ -297,9 +293,7 @@ export default function TestFloatingCards() {
   const [isAnimating, setIsAnimating] = useState(false);
   
   // Main app state and hooks
-  const { setFrameReady, isFrameReady, context } = useMiniKit();
-  const openUrl = useOpenUrl();
-const addFrame = useAddFrame();
+  const openUrl = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
   const [frameAdded, setFrameAdded] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showTestInfo, setShowTestInfo] = useState(false);
@@ -339,38 +333,8 @@ const addFrame = useAddFrame();
     setRemovedCards(new Set());
   };
   
-  // Frame button functionality
-  const handleAddFrame = useCallback(async () => {
-    const frameAdded = await addFrame();
-    setFrameAdded(Boolean(frameAdded));
-  }, [addFrame]);
-
-  const saveFrameButton = useMemo(() => {
-    if (context && !context.client.added) {
-      return (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleAddFrame}
-          className="text-[var(--app-accent)] p-4"
-          icon={<Icon name="plus" size="sm" />}
-        >
-          Save Frame
-        </Button>
-      );
-    }
-
-    if (frameAdded) {
-      return (
-        <div className="flex items-center space-x-1 text-sm font-medium text-[#0052FF] animate-fade-out">
-          <Icon name="check" size="sm" className="text-[#0052FF]" />
-          <span>Saved</span>
-        </div>
-      );
-    }
-
-    return null;
-  }, [context, frameAdded, handleAddFrame]);
+  // Save frame button removed (no longer using Farcaster MiniKit)
+  const saveFrameButton = null;
 
   // Prevent body scroll when cards are being interacted with
   useEffect(() => {

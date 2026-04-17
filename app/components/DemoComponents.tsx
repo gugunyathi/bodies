@@ -15,7 +15,7 @@ import {
   TransactionStatusLabel,
   TransactionStatus,
 } from "@coinbase/onchainkit/transaction";
-import { useNotification } from "@coinbase/onchainkit/minikit";
+// useNotification replaced with standard web Notification API
 
 type ButtonProps = {
   children: ReactNode;
@@ -401,7 +401,17 @@ function TransactionCard() {
       ]
     : [], [address]);
 
-  const sendNotification = useNotification();
+  // Standard web notification — no Farcaster dependency
+  const sendNotification = useCallback(async ({ title, body }: { title: string; body: string }) => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body });
+      } else if (Notification.permission !== 'denied') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') new Notification(title, { body });
+      }
+    }
+  }, []);
 
   const handleSuccess = useCallback(async (response: TransactionResponse) => {
     const transactionHash = response.transactionReceipts[0].transactionHash;

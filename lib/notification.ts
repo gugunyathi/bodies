@@ -1,5 +1,10 @@
-import type { MiniAppNotificationDetails } from "@farcaster/frame-sdk";
 import { redis } from "./redis";
+
+// Standard web notification details (replaces Farcaster MiniAppNotificationDetails)
+export type NotificationDetails = {
+  url: string;
+  token: string;
+};
 
 const notificationServiceKey =
   process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME ?? "minikit";
@@ -10,19 +15,19 @@ function getUserNotificationDetailsKey(fid: number): string {
 
 export async function getUserNotificationDetails(
   fid: number,
-): Promise<MiniAppNotificationDetails | null> {
+): Promise<NotificationDetails | null> {
   if (!redis) {
     return null;
   }
 
-  return await redis.get<MiniAppNotificationDetails>(
+  return await redis.get<NotificationDetails>(
     getUserNotificationDetailsKey(fid),
   );
 }
 
 export async function setUserNotificationDetails(
   fid: number,
-  notificationDetails: MiniAppNotificationDetails,
+  notificationDetails: NotificationDetails,
 ): Promise<void> {
   if (!redis) {
     return;

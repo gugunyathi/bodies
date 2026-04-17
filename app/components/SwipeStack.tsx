@@ -1,7 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SwipeCard } from "./SwipeCard";
+import { QuestionCard } from "./QuestionCard";
+import { FREAKY_QUESTIONS, type FreakyQuestion } from "../../lib/freaky-questions";
 
 type Evidence = {
   id: string;
@@ -44,7 +46,13 @@ type NFTCard = {
   metadata: string;
 };
 
-type CardData = Profile | NFTCard;
+type QuestionCardData = {
+  id: string;
+  type: 'question';
+  question: FreakyQuestion;
+};
+
+type CardData = Profile | NFTCard | QuestionCardData;
 
 type RelationshipConnection = {
   name: string;
@@ -57,6 +65,7 @@ type SwipeStackProps = {
   onSwipe: (direction: 'left' | 'right', profileId: string) => void;
   onRate?: (profileId: string, rating: 'dated' | 'hookup' | 'transactional', evidence?: Evidence[]) => void;
   onBuyNFT?: (nftId: string) => void;
+  onQuestionAnswer?: (questionId: string, answer: boolean) => void;
   isWalletConnected?: boolean;
   isNFTLoading?: boolean;
   walletType?: string;
@@ -72,6 +81,7 @@ export function SwipeStack({
   onSwipe,
   onRate,
   onBuyNFT,
+  onQuestionAnswer,
   isWalletConnected = false,
   isNFTLoading = false,
   walletType,
@@ -81,9 +91,31 @@ export function SwipeStack({
   isConnecting = false
 }: SwipeStackProps) {
   // Use profiles if provided, otherwise use cards
-  const cardData = profiles || cards || [];
+  const rawCards = profiles || cards || [];
   const [currentIndex, setCurrentIndex] = useState(0);
   const [removedCards, setRemovedCards] = useState<Set<string>>(new Set());
+
+  // Inject question cards into the card data: 1 question every 4 profiles
+  const cardData = useMemo(() => {
+    const INTERVAL = 4; // one question card every N profile cards
+    const result: CardData[] = [];
+    let questionIdx = 0;
+
+    rawCards.forEach((card, i) => {
+      result.push(card);
+      // After every INTERVAL-th card, inject a question (if we still have questions)
+      if ((i + 1) % INTERVAL === 0 && questionIdx < FREAKY_QUESTIONS.length) {
+        result.push({
+          id: `question-${FREAKY_QUESTIONS[questionIdx].id}`,
+          type: 'question',
+          question: FREAKY_QUESTIONS[questionIdx],
+        } as QuestionCardData);
+        questionIdx++;
+      }
+    });
+
+    return result;
+  }, [rawCards]);
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -124,6 +156,14 @@ export function SwipeStack({
     onSwipe(direction, profileId);
   };
 
+  const handleQuestionAnswer = (questionId: string, answer: boolean) => {
+    // Dismiss the question card
+    setRemovedCards(prev => new Set([...prev, `question-${questionId}`]));
+    setCurrentIndex(prev => prev + 1);
+    // Notify parent
+    onQuestionAnswer?.(questionId, answer);
+  };
+
   // Filter out removed cards and get available cards
   const availableCards = cardData.filter(card => !removedCards.has(card.id));
   
@@ -145,6 +185,7 @@ export function SwipeStack({
     <div className="relative w-full h-[600px] max-w-sm mx-auto">
       {cardsToShow.map((card, index) => {
         const isNFT = 'type' in card && card.type === 'nft';
+        const isQuestion = 'type' in card && card.type === 'question';
         const isActive = index === 0;
         const zIndex = cardsToShow.length - index;
         
@@ -161,24 +202,33 @@ export function SwipeStack({
               zIndex,
             }}
           >
-            <SwipeCard
-              profile={isNFT ? undefined : (card as Profile)}
-              nft={isNFT ? (card as NFTCard) : undefined}
-              onSwipe={handleSwipe}
-              onRate={onRate}
-              onBuyNFT={onBuyNFT}
-              isActive={isActive}
-              zIndex={zIndex}
-              isWalletConnected={isWalletConnected}
-              isNFTLoading={isNFTLoading}
-              walletType={walletType}
-              walletDisplayName={walletDisplayName}
-              isCorrectNetwork={isCorrectNetwork}
-              connectionError={connectionError}
-              isConnecting={isConnecting}
-              profiles={cardData as Profile[]}
-              data-profile-id={card.id}
-            />
+            {isQuestion ? (
+              <QuestionCard
+                question={(card as QuestionCardData).question}
+                onAnswer={handleQuestionAnswer}
+                isActive={isActive}
+                zIndex={zIndex}
+              />
+            ) : (
+              <SwipeCard
+                profile={isNFT ? undefined : (card as Profile)}
+                nft={isNFT ? (card as NFTCard) : undefined}
+                onSwipe={handleSwipe}
+                onRate={onRate}
+                onBuyNFT={onBuyNFT}
+                isActive={isActive}
+                zIndex={zIndex}
+                isWalletConnected={isWalletConnected}
+                isNFTLoading={isNFTLoading}
+                walletType={walletType}
+                walletDisplayName={walletDisplayName}
+                isCorrectNetwork={isCorrectNetwork}
+                connectionError={connectionError}
+                isConnecting={isConnecting}
+                profiles={rawCards as Profile[]}
+                data-profile-id={card.id}
+              />
+            )}
           </div>
         );
       })}

@@ -2,12 +2,12 @@
 
 import { type ReactNode } from "react";
 import { base } from "wagmi/chains";
-import { MiniKitProvider } from "@coinbase/onchainkit/minikit";
+import { OnchainKitProvider } from "@coinbase/onchainkit";
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { coinbaseWallet, injected } from 'wagmi/connectors';
+import { coinbaseWallet, injected, metaMask } from 'wagmi/connectors';
 
-// Create wagmi config
+// Standard web wagmi config — no Farcaster / MiniKit dependency
 const config = createConfig({
   chains: [base],
   connectors: [
@@ -16,18 +16,20 @@ const config = createConfig({
       appName: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME || 'Bodies App',
       preference: 'all',
     }),
+    metaMask(),
   ],
   transports: {
-    [base.id]: http('https://mainnet.base.org'),
+    [base.id]: http(
+      process.env.NEXT_PUBLIC_RPC_URL || 'https://mainnet.base.org'
+    ),
   },
-  ssr: false,
+  ssr: true,
 });
 
-// Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
       refetchOnWindowFocus: false,
     },
   },
@@ -37,20 +39,19 @@ export function Providers(props: { children: ReactNode }) {
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
-        <MiniKitProvider
+        <OnchainKitProvider
           apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
           chain={base}
           config={{
             appearance: {
               mode: "auto",
-              theme: "mini-app-theme",
               name: process.env.NEXT_PUBLIC_ONCHAINKIT_PROJECT_NAME,
               logo: process.env.NEXT_PUBLIC_ICON_URL,
             },
           }}
         >
           {props.children}
-        </MiniKitProvider>
+        </OnchainKitProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

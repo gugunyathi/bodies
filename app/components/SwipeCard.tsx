@@ -9,6 +9,8 @@ import { handleProfileClick, navigateToProfile, navigateToAddProfile } from '../
 import { SimpleBodycountScore } from './SimpleBodycountScore';
 import { BettingModal } from './BettingModal';
 import { useBettingContract } from '../hooks/useBettingContract';
+import { QuestionCard } from './QuestionCard';
+import { FREAKY_QUESTIONS, type FreakyQuestion } from '../../lib/freaky-questions';
 
 type Evidence = {
   id: string;
@@ -786,11 +788,18 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
   );
 }
 
+type QuestionCardData = {
+  id: string;
+  type: 'question';
+  question: FreakyQuestion;
+};
+
 type SwipeStackProps = {
-  cards: CardData[];
+  cards: (CardData | QuestionCardData)[];
   onSwipe: (direction: 'left' | 'right', profileId: string) => void;
   onRate?: (profileId: string, rating: 'dated' | 'hookup' | 'transactional', evidence?: Evidence[]) => void;
   onBuyNFT?: (nftId: string) => void;
+  onQuestionAnswer?: (questionId: string, answer: boolean) => void;
   isWalletConnected?: boolean;
   isNFTLoading?: boolean;
   walletType?: string;
@@ -800,10 +809,29 @@ type SwipeStackProps = {
   isConnecting?: boolean;
 };
 
-export function SwipeStack({ cards, onSwipe, onRate, onBuyNFT, isWalletConnected = false, isNFTLoading = false, walletType, walletDisplayName, isCorrectNetwork = true, connectionError, isConnecting = false }: SwipeStackProps) {
+export function SwipeStack({ cards: rawCards, onSwipe, onRate, onBuyNFT, onQuestionAnswer, isWalletConnected = false, isNFTLoading = false, walletType, walletDisplayName, isCorrectNetwork = true, connectionError, isConnecting = false }: SwipeStackProps) {
   // localStorage keys for persistence
   const STORAGE_KEY_INDEX = 'swipestack_current_index';
   const STORAGE_KEY_REMOVED = 'swipestack_removed_profiles';
+
+  // Inject question cards every 4 profile/NFT cards
+  const cards = (() => {
+    const INTERVAL = 4;
+    const result: (CardData | QuestionCardData)[] = [];
+    let questionIdx = 0;
+    rawCards.forEach((card, i) => {
+      result.push(card);
+      if ((i + 1) % INTERVAL === 0 && questionIdx < FREAKY_QUESTIONS.length) {
+        result.push({
+          id: `question-${FREAKY_QUESTIONS[questionIdx].id}`,
+          type: 'question' as const,
+          question: FREAKY_QUESTIONS[questionIdx],
+        });
+        questionIdx++;
+      }
+    });
+    return result;
+  })();
   
   // Initialize state from localStorage or defaults
   const getInitialIndex = () => {
@@ -1056,7 +1084,8 @@ export function SwipeStack({ cards, onSwipe, onRate, onBuyNFT, isWalletConnected
   console.log(`SwipeStack received ${cards.length} cards:`, cards.map(c => {
     // Add type checking to prevent 'in' operator errors
     if (typeof c === 'object' && c !== null) {
-      return 'name' in c ? c.name : `NFT-${(c as NFTCard).id}`;
+      if ('type' in c && c.type === 'question') return `Q: ${(c as QuestionCardData).question.id}`;
+      return 'name' in c ? (c as Profile).name : `NFT-${(c as NFTCard).id}`;
     }
     return 'Invalid card type';
   }));
@@ -1073,11 +1102,14 @@ export function SwipeStack({ cards, onSwipe, onRate, onBuyNFT, isWalletConnected
   console.log(`SwipeStack visibleCards after filtering: ${visibleCards.length}`, visibleCards.map(c => {
     // Add type checking to prevent 'in' operator errors
     if (typeof c === 'object' && c !== null) {
+      if ('type' in c && c.type === 'question') return `Q: ${(c as QuestionCardData).question.id}`;
       return 'name' in c ? c.name : `NFT-${(c as NFTCard).id}`;
     }
     return 'Invalid card type';
   }));
   const currentCard = visibleCards[currentIndex];
+  // Only use keyboard nav for non-question cards
+  const currentCardIsQuestion = currentCard && 'type' in currentCard && currentCard.type === 'question';
   
   // Get up to 5 cards for display (current + 4 background)
   const displayCards = visibleCards.slice(currentIndex, currentIndex + 5);
@@ -1085,7 +1117,7 @@ export function SwipeStack({ cards, onSwipe, onRate, onBuyNFT, isWalletConnected
   // Keyboard controls for laptop users
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isAnimating || !currentCard) return;
+      if (isAnimating || !currentCard || currentCardIsQuestion) return;
       
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
@@ -1190,7 +1222,28 @@ export function SwipeStack({ cards, onSwipe, onRate, onBuyNFT, isWalletConnected
         const opacity = 1.0;
         
         const cardIsNFT = 'type' in card && card.type === 'nft';
+        const cardIsQuestion = 'type' in card && card.type === 'question';
         
+        if (cardIsQuestion) {
+          return (
+            <QuestionCard
+              key={card.id}
+              question={(card as QuestionCardData).question}
+              onAnswer={(questionId, answer) => {
+                // Dismiss question card
+                setRemovedProfiles(prev => {
+                  const newRemoved = new Set([...prev, card.id]);
+                  saveToLocalStorage(currentIndex, newRemoved);
+                  return newRemoved;
+                });
+                onQuestionAnswer?.(questionId, answer);
+              }}
+              isActive={isActive}
+              zIndex={zIndex}
+            />
+          );
+        }
+
         return (
           <SwipeCard
             key={card.id}
@@ -1249,19 +1302,21 @@ export function SwipeStack({ cards, onSwipe, onRate, onBuyNFT, isWalletConnected
       {showBettingModal2 && visibleCards.length > 0 && (() => {
         const currentCard = visibleCards[currentIndex];
         const cardIsNFT = 'type' in currentCard && currentCard.type === 'nft';
-        const currentProfile = cardIsNFT ? null : currentCard as Profile;
+        const cardIsQuestion = 'type' in currentCard && currentCard.type === 'question';
+        const currentProfile = (cardIsNFT || cardIsQuestion) ? null : currentCard as Profile;
         
-        // Get random profile for betting (excluding current profile and NFTs)
+        // Get random profile for betting (excluding current profile, NFTs, and question cards)
         const availableProfiles = visibleCards.filter((card, index) => {
           const isNFT = 'type' in card && card.type === 'nft';
-          return !isNFT && index !== currentIndex;
+          const isQuestion = 'type' in card && card.type === 'question';
+          return !isNFT && !isQuestion && index !== currentIndex;
         }) as Profile[];
         
         const randomProfile = availableProfiles.length > 0 
           ? availableProfiles[Math.floor(Math.random() * availableProfiles.length)]
           : currentProfile; // Fallback to current profile if no other profiles available
         
-        return !cardIsNFT && currentProfile && randomProfile ? (
+        return !cardIsNFT && !cardIsQuestion && currentProfile && randomProfile ? (
           <BettingModal
             isOpen={showBettingModal2}
             onClose={() => setShowBettingModal2(false)}
