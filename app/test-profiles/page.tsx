@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { apiClient } from '../../lib/api-client';
-import { ConnectWallet, Wallet, WalletDropdown } from '@coinbase/onchainkit/wallet';
-import { Identity, Avatar, Name, Address } from '@coinbase/onchainkit/identity';
+import { WalletButton } from '../components/WalletButton';
 import { useAccount } from 'wagmi';
 import { SimpleBodycountScore } from '../components/SimpleBodycountScore';
 
@@ -2048,28 +2047,10 @@ export default function SystemProfilesPage() {
           {/* Wallet Connection */}
           <div className="glass-morphism p-6 rounded-xl mb-6">
             <h2 className="text-xl font-semibold text-white mb-4">Wallet Connection</h2>
-            {isConnected ? (
-              <div className="flex items-center justify-center space-x-4">
-                <Wallet>
-                  <ConnectWallet />
-                  <WalletDropdown>
-                    <Identity className="px-4 py-2" hasCopyAddressOnClick>
-                      <Avatar />
-                      <Name />
-                      <Address />
-                    </Identity>
-                  </WalletDropdown>
-                </Wallet>
-                <div className="text-green-400">✅ Connected</div>
-              </div>
-            ) : (
-              <div className="text-center">
-                <Wallet>
-                  <ConnectWallet />
-                </Wallet>
-                <p className="text-gray-400 mt-2">Connect wallet to create system profiles</p>
-              </div>
-            )}
+            <div className="flex items-center justify-center space-x-4">
+              <WalletButton />
+              {isConnected && <div className="text-green-400">✅ Connected</div>}
+            </div>
           </div>
         </div>
 

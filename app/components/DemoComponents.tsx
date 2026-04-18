@@ -1,20 +1,7 @@
 "use client";
 
-import { type ReactNode, useCallback, useMemo, useState } from "react";
-import { useAccount } from "wagmi";
-import {
-  Transaction,
-  TransactionButton,
-  TransactionToast,
-  TransactionToastAction,
-  TransactionToastIcon,
-  TransactionToastLabel,
-  TransactionError,
-  TransactionResponse,
-  TransactionStatusAction,
-  TransactionStatusLabel,
-  TransactionStatus,
-} from "@coinbase/onchainkit/transaction";
+import { type ReactNode, useCallback, useState } from "react";
+import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from "wagmi";
 // useNotification replaced with standard web Notification API
 
 type ButtonProps = {
@@ -389,19 +376,9 @@ function TodoList() {
 
 function TransactionCard() {
   const { address } = useAccount();
+  const { sendTransaction, data: hash, isPending, error } = useSendTransaction();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
-  // Example transaction call - sending 0 ETH to self
-  const calls = useMemo(() => address
-    ? [
-        {
-          to: address,
-          data: "0x" as `0x${string}`,
-          value: BigInt(0),
-        },
-      ]
-    : [], [address]);
-
-  // Standard web notification — no Farcaster dependency
   const sendNotification = useCallback(async ({ title, body }: { title: string; body: string }) => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       if (Notification.permission === 'granted') {
@@ -413,53 +390,49 @@ function TransactionCard() {
     }
   }, []);
 
-  const handleSuccess = useCallback(async (response: TransactionResponse) => {
-    const transactionHash = response.transactionReceipts[0].transactionHash;
-
-    console.log(`Transaction successful: ${transactionHash}`);
-
-    await sendNotification({
-      title: "Congratulations!",
-      body: `You sent your a transaction, ${transactionHash}!`,
-    });
-  }, [sendNotification]);
+  const handleSend = useCallback(async () => {
+    if (!address) return;
+    sendTransaction(
+      { to: address, value: BigInt(0) },
+      {
+        onSuccess: async (txHash) => {
+          console.log(`Transaction successful: ${txHash}`);
+          await sendNotification({
+            title: 'Congratulations!',
+            body: `Transaction sent: ${txHash}`,
+          });
+        },
+      }
+    );
+  }, [address, sendTransaction, sendNotification]);
 
   return (
     <Card title="Make Your First Transaction">
       <div className="space-y-4">
         <p className="text-[var(--app-foreground-muted)] mb-4">
-          Experience the power of seamless sponsored transactions with{" "}
-          <a
-            href="https://onchainkit.xyz"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[#0052FF] hover:underline"
-          >
-            OnchainKit
+          Experience seamless transactions on{' '}
+          <a href="https://base.org" target="_blank" rel="noopener noreferrer" className="text-[#0052FF] hover:underline">
+            Base
           </a>
           .
         </p>
-
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center gap-3">
           {address ? (
-            <Transaction
-              calls={calls}
-              onSuccess={handleSuccess}
-              onError={(error: TransactionError) =>
-                console.error("Transaction failed:", error)
-              }
-            >
-              <TransactionButton className="text-white text-md" />
-              <TransactionStatus>
-                <TransactionStatusAction />
-                <TransactionStatusLabel />
-              </TransactionStatus>
-              <TransactionToast className="mb-4">
-                <TransactionToastIcon />
-                <TransactionToastLabel />
-                <TransactionToastAction />
-              </TransactionToast>
-            </Transaction>
+            <>
+              <button
+                onClick={handleSend}
+                disabled={isPending || isConfirming}
+                className="px-4 py-2 bg-[#0052FF] text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {isPending ? 'Waiting for approval…' : isConfirming ? 'Confirming…' : 'Send Test Transaction'}
+              </button>
+              {isSuccess && hash && (
+                <p className="text-green-500 text-xs text-center break-all">✓ Success! Tx: {hash}</p>
+              )}
+              {error && (
+                <p className="text-red-500 text-xs text-center">{error.message}</p>
+              )}
+            </>
           ) : (
             <p className="text-yellow-400 text-sm text-center mt-2">
               Connect your wallet to send a transaction

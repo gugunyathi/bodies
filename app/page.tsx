@@ -1,19 +1,6 @@
 "use client";
 
 import { useAccount } from 'wagmi';
-import {
-  Name,
-  Identity,
-  Address,
-  Avatar,
-  EthBalance,
-} from "@coinbase/onchainkit/identity";
-import {
-  ConnectWallet,
-  Wallet,
-  WalletDropdown,
-  WalletDropdownDisconnect,
-} from "@coinbase/onchainkit/wallet";
 import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Button } from "./components/DemoComponents";
 import { Icon } from "./components/DemoComponents";
@@ -24,6 +11,7 @@ import { SimpleBodycountScore } from "./components/SimpleBodycountScore";
 import { PrivacySettings, PrivacyStatus, AnonymousToggle } from "./components/PrivacySettings";
 import { FreakyScoreBubble, SpiritCelebModal } from "./components/FreakyScore";
 import { SignIn } from './components/SignIn';
+import { WalletButton } from './components/WalletButton';
 import { FREAKY_QUESTIONS, MAX_FREAKY_SCORE, getSpiritCelebrity, type SpiritCelebrity } from "../lib/freaky-questions";
 import { useNFTPurchase } from './hooks/useNFTPurchase';
 import { useCurrentUser } from '../hooks/useCurrentUser';
@@ -560,6 +548,7 @@ export default function App() {
 
   const [showAddProfileForm, setShowAddProfileForm] = useState(false);
   const [profileManagerProfiles, setProfileManagerProfiles] = useState<Profile[]>([]);
+  const [showBurgerMenu, setShowBurgerMenu] = useState(false);
 
   // ── Freaky Score state ────────────────────────────────────────────────────
   const [freakyAnswers, setFreakyAnswers] = useState<Record<string, boolean>>(() => {
@@ -802,155 +791,40 @@ export default function App() {
 
 
   return (
-    <div className="flex flex-col min-h-screen font-sans text-[var(--app-foreground)] mini-app-theme bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50">
-      <div className="w-full max-w-md mx-auto px-4 py-3 swipe-container-stable">
-        <header className="flex justify-between items-center mb-2 h-11">
-          <div className="flex items-center space-x-3">
-            <div className="relative">
-              <Wallet className="z-10">
-                <ConnectWallet>
-                  <div className="flex items-center space-x-2">
-                    {isConnecting ? (
-                      <span className="animate-spin text-xs">⏳</span>
-                    ) : (
-                      <span className="text-xs">🔗</span>
-                    )}
-                    <span className="text-sm font-medium">
-                      {isConnecting ? 'Connecting...' : (isWalletConnected ? 'Connected' : 'Connect')}
-                    </span>
-                  </div>
-                </ConnectWallet>
-                <WalletDropdown>
-                  <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Avatar />
-                      <div className="flex flex-col">
-                        <Name />
-                        <div className="text-xs text-gray-500">
-                          {walletDisplayName}
-                          {!isCorrectNetwork && (
-                            <span className="text-red-500 ml-1">⚠️ Wrong Network</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <Address />
-                    <EthBalance />
-                    {!isCorrectNetwork && (
-                      <button
-                        onClick={switchToBaseNetwork}
-                        className="w-full mt-2 px-3 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 transition-colors"
-                      >
-                        Switch to Base Network
-                      </button>
-                    )}
-                    <div className="px-0 pt-2 pb-1">
-                      {siweVerified ? (
-                        <div className="flex items-center space-x-1 text-xs text-green-600 font-medium">
-                          <span>✅</span>
-                          <span>Signed in with Ethereum</span>
-                        </div>
-                      ) : (
-                        <SignIn onSignedIn={handleSiweSignedIn} />
-                      )}
-                    </div>
-                  </Identity>
-                  <WalletDropdownDisconnect />
-                </WalletDropdown>
-              </Wallet>
-              {connectionError && (
-                <div className="absolute top-full left-0 mt-1 p-2 bg-red-100 border border-red-300 rounded text-xs text-red-700 max-w-xs z-20">
-                  {connectionError}
-                </div>
-              )}
-            </div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-              Bodies
-            </h1>
-          </div>
-          <div className="flex items-center space-x-2">
-            <AnonymousToggle
-              enabled={privacySettings.anonymousRatings}
-              onToggle={() => setPrivacySettings(prev => ({ ...prev, anonymousRatings: !prev.anonymousRatings }))}
-            />
-            <PrivacyStatus
-              settings={privacySettings}
-              onClick={() => setShowPrivacySettings(true)}
-            />
-            {migrationStatus.completed && (
-              <div className="flex items-center space-x-1 bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
-                <span>☁️</span>
-                <span>Synced</span>
-              </div>
-            )}
-          </div>
-        </header>
+    <div className="flex flex-col h-[100dvh] font-sans text-[var(--app-foreground)] mini-app-theme bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 overflow-hidden">
 
-        {/* Navigation Tabs */}
-        <div className="flex bg-white/80 backdrop-blur-md rounded-2xl p-1 mb-4 shadow-lg">
-          <button
-            onClick={() => setActiveTab("swipe")}
-            className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
-              activeTab === "swipe"
-                ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            🔥 Swipe
-          </button>
-          <button
-            onClick={() => setActiveTab("add")}
-            className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
-              activeTab === "add"
-                ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            ➕ Add
-          </button>
-          <button
-            onClick={() => setActiveTab("scores")}
-            className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
-              activeTab === "scores"
-                ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            📊 Scores
-          </button>
-          <button
-            onClick={() => setActiveTab("privacy")}
-            className={`flex-1 py-2 px-3 rounded-xl text-sm font-medium transition-all ${
-              activeTab === "privacy"
-                ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            🔒 Privacy
-          </button>
+      {/* Compact Header */}
+      <header className="flex items-center px-4 h-12 flex-shrink-0 relative">
+        <button
+          onClick={() => setShowBurgerMenu(true)}
+          className="p-2 rounded-lg hover:bg-white/50 transition-colors"
+          aria-label="Open menu"
+        >
+          <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <h1 className="absolute left-1/2 -translate-x-1/2 text-xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+          Bodies
+        </h1>
+        <div className="ml-auto">
+          <WalletButton
+            inline
+            siweVerified={siweVerified}
+            onSignedIn={handleSiweSignedIn}
+            connectionError={connectionError}
+          />
         </div>
+      </header>
 
-        {/* Tagline moved up */}
-        <div className="text-center mb-3">
-          <p className="text-gray-600 text-sm">
-            Rate relationships - Track scores - Keep it real
-          </p>
-        </div>
-
-        <main className="flex-1">
-          {activeTab === "swipe" && (
-            <div className="space-y-4">
-              
-
-              {(() => {
-                console.log('🎯 RENDER: About to render SwipeStack, mixedCards.length:', mixedCards.length);
-                console.log('🎯 RENDER: Mixed Cards:', mixedCards.map(c => {
-                  const cardId = 'id' in c ? c.id : (c as any).id;
-                  const cardName = 'name' in c ? c.name : `NFT-${cardId}`;
-                  return { id: cardId, name: cardName };
-                }));
-                return mixedCards.length > 0 ? (
-                  <SwipeStack
+      {/* Main content */}
+      <main className="flex-1 overflow-hidden">
+        {activeTab === "swipe" && (
+          <div className="h-full swipe-container-stable">
+            {(() => {
+              console.log('🎯 RENDER: About to render SwipeStack, mixedCards.length:', mixedCards.length);
+              return mixedCards.length > 0 ? (
+                <SwipeStack
                   cards={mixedCards}
                   onSwipe={handleSwipe}
                   onRate={handleRate}
@@ -964,25 +838,17 @@ export default function App() {
                   connectionError={connectionError}
                   isConnecting={isConnecting}
                 />
-                ) : (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-gray-500">Loading cards...</div>
-                  </div>
-                );
-              })()}
-              
-              <div className="text-center mt-6">
-                <p className="text-xs text-gray-500">
-                  Swipe left to pass - Swipe right to like - Tap emojis to rate
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Laptop users: Use left/right arrow keys to swipe
-                </p>
-              </div>
-            </div>
-          )}
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-gray-500">Loading cards...</div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
           
           {activeTab === "add" && (
+            <div className="h-full overflow-y-auto px-4 py-4 max-w-md mx-auto">
             <div className="space-y-4">
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -1026,16 +892,20 @@ export default function App() {
                 </div>
               </div>
             </div>
+            </div>
           )}
           
           {activeTab === "scores" && (
+            <div className="h-full overflow-y-auto px-4 py-4 max-w-md mx-auto">
             <BodycountScore
               profiles={profiles}
               currentProfileId={currentProfileId}
             />
+            </div>
           )}
           
           {activeTab === "privacy" && (
+            <div className="h-full overflow-y-auto px-4 py-4 max-w-md mx-auto">
             <div className="space-y-4">
               <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">
@@ -1140,20 +1010,112 @@ export default function App() {
                 )}
               </div>
             </div>
+            </div>
           )}
         </main>
 
-        <footer className="mt-4 pt-4 flex justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="text-gray-400 text-xs"
-            onClick={() => openUrl("https://base.org/builders/minikit")}
-          >
-            Built on Base with MiniKit
-          </Button>
-        </footer>
-      </div>
+      {/* Burger Menu Overlay */}
+      {showBurgerMenu && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50 z-50"
+            onClick={() => setShowBurgerMenu(false)}
+          />
+          {/* Drawer */}
+          <div className="fixed top-0 left-0 h-full w-72 max-w-[85vw] bg-white shadow-2xl z-50 flex flex-col">
+            <div className="p-5">
+              {/* Menu Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">Bodies</h2>
+                <button
+                  onClick={() => setShowBurgerMenu(false)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Navigation Tabs */}
+              <div className="space-y-2 mb-6">
+                <button
+                  onClick={() => { setActiveTab("swipe"); setShowBurgerMenu(false); }}
+                  className={`w-full flex items-center px-4 py-3 rounded-xl text-left transition-all font-medium ${
+                    activeTab === "swipe"
+                      ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <span className="mr-3 text-lg">🔥</span> Swipe
+                </button>
+                <button
+                  onClick={() => { setActiveTab("add"); setShowBurgerMenu(false); }}
+                  className={`w-full flex items-center px-4 py-3 rounded-xl text-left transition-all font-medium ${
+                    activeTab === "add"
+                      ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <span className="mr-3 text-lg">➕</span> Add Profile
+                </button>
+                <button
+                  onClick={() => { setActiveTab("scores"); setShowBurgerMenu(false); }}
+                  className={`w-full flex items-center px-4 py-3 rounded-xl text-left transition-all font-medium ${
+                    activeTab === "scores"
+                      ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <span className="mr-3 text-lg">📊</span> Scores
+                </button>
+                <button
+                  onClick={() => { setActiveTab("privacy"); setShowBurgerMenu(false); }}
+                  className={`w-full flex items-center px-4 py-3 rounded-xl text-left transition-all font-medium ${
+                    activeTab === "privacy"
+                      ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md"
+                      : "text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  <span className="mr-3 text-lg">🔒</span> Privacy
+                </button>
+              </div>
+
+              {/* Privacy quick toggles */}
+              <div className="border-t border-gray-100 pt-4 mb-4">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Settings</h3>
+                <div className="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-gray-50">
+                  <span className="text-sm text-gray-700">Anonymous Ratings</span>
+                  <AnonymousToggle
+                    enabled={privacySettings.anonymousRatings}
+                    onToggle={() => setPrivacySettings(prev => ({ ...prev, anonymousRatings: !prev.anonymousRatings }))}
+                  />
+                </div>
+                <button
+                  onClick={() => { setShowPrivacySettings(true); setShowBurgerMenu(false); }}
+                  className="w-full flex items-center px-2 py-2 rounded-lg hover:bg-gray-50 text-sm text-gray-700 mt-1"
+                >
+                  <PrivacyStatus settings={privacySettings} onClick={() => {}} />
+                  <span className="ml-2">Privacy Settings</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Footer in menu */}
+            <div className="mt-auto p-5 border-t border-gray-100">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-gray-400 text-xs w-full"
+                onClick={() => openUrl("https://base.org")}
+              >
+                Built on Base
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
       
       {showAddProfileForm && (() => {
         const profileManager = ProfileManager({ 

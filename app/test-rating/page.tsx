@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { apiClient } from '../../lib/api-client';
-import { ConnectWallet, Wallet, WalletDropdown } from '@coinbase/onchainkit/wallet';
-import { Identity, Avatar, Name, Address, EthBalance } from '@coinbase/onchainkit/identity';
+import { WalletButton } from '../components/WalletButton';
 import { useAccount } from 'wagmi';
 
 interface TestProfile {
@@ -198,22 +197,7 @@ export default function TestRatingPage() {
           {/* Wallet Connection */}
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <h2 className="text-lg font-semibold mb-4">Wallet Connection</h2>
-            <div className="flex flex-col space-y-4">
-              <Wallet>
-                <ConnectWallet className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-pink-600 hover:to-purple-700 transition-all">
-                  <Avatar className="h-6 w-6" />
-                  <Name />
-                </ConnectWallet>
-                <WalletDropdown>
-                  <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                    <Avatar />
-                    <Name />
-                    <Address />
-                    <EthBalance />
-                  </Identity>
-                </WalletDropdown>
-              </Wallet>
-            </div>
+            <WalletButton />
           </div>
 
           {/* Authentication Status */}

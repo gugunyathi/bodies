@@ -8,5 +8,8 @@
   },
   "files.associations": {
     "*.css": "tailwindcss"
-  }
+  },
+  "typescript.tsserver.experimental.enableProjectDiagnostics": false,
+  "typescript.disableAutomaticTypeAcquisition": false,
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

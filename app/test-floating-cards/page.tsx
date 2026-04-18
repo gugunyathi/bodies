@@ -3,19 +3,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 // useOpenUrl replaced with window.open
-import {
-  Name,
-  Identity,
-  Address,
-  Avatar,
-  EthBalance,
-} from "@coinbase/onchainkit/identity";
-import {
-  ConnectWallet,
-  Wallet,
-  WalletDropdown,
-  WalletDropdownDisconnect,
-} from "@coinbase/onchainkit/wallet";
+import { WalletButton } from '../components/WalletButton';
 import { Button } from "../components/DemoComponents";
 import { Icon } from "../components/DemoComponents";
 import { PrivacySettings, PrivacyStatus, AnonymousToggle } from "../components/PrivacySettings";
@@ -356,22 +344,7 @@ export default function TestFloatingCards() {
               <h1 className="text-xl font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
                 Bodies
               </h1>
-              <Wallet>
-                <ConnectWallet>
-                  <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors">
-                    Connect Wallet
-                  </button>
-                </ConnectWallet>
-                <WalletDropdown>
-                  <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                    <Avatar />
-                    <Name />
-                    <Address />
-                    <EthBalance />
-                  </Identity>
-                  <WalletDropdownDisconnect />
-                </WalletDropdown>
-              </Wallet>
+              <WalletButton />
             </div>
 
             {/* Right: Hamburger Menu and Profile */}

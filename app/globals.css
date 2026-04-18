@@ -19,6 +19,36 @@ body {
   background: var(--background);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   overflow-x: hidden;
+  /* Prevent iOS bounce scroll on the body */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Prevent tap highlight flash on interactive elements */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Remove callout (long-press menu) on images/links in the card */
+img, a {
+  -webkit-touch-callout: none;
+}
+
+/* Swipe area: lock scroll to prevent iOS page-bounce during card drag */
+.swipe-container-stable {
+  overscroll-behavior: none;
+  overflow: hidden;
+}
+
+/* Better tap targets across the app */
+button, [role="button"] {
+  touch-action: manipulation; /* removes 300ms double-tap delay */
+}
+
+/* Safe area padding for phones with notches/home bars */
+.h-\[100dvh\] {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 @layer utilities {
@@ -396,10 +426,16 @@ body {
     padding: 0.875rem;
   }
   
-  /* Touch-friendly buttons */
+  /* Touch-friendly minimum tap targets (Apple HIG: 44pt) */
   button {
     min-height: 44px;
     min-width: 44px;
+  }
+
+  /* Scrollable content panels get momentum scroll */
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
   }
   
   /* Improved tap targets */

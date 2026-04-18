@@ -19,8 +19,11 @@ type FreakyScoreProps = {
 
 export function FreakyScoreBubble({ score, totalAnswered, totalQuestions, onShowResult }: FreakyScoreProps) {
   const [pulse, setPulse] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const tier = getFreakyTierLabel(score, MAX_FREAKY_SCORE);
   const pct = Math.round((score / MAX_FREAKY_SCORE) * 100);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Pulse animation on score change
   useEffect(() => {
@@ -30,53 +33,47 @@ export function FreakyScoreBubble({ score, totalAnswered, totalQuestions, onShow
     return () => clearTimeout(t);
   }, [score, totalAnswered]);
 
-  if (totalAnswered === 0) return null;
+  if (!mounted || totalAnswered === 0) return null;
 
   return (
     <button
       onClick={onShowResult}
       className={`
-        fixed bottom-24 right-4 z-40 flex flex-col items-center
-        bg-black/80 backdrop-blur-md border border-pink-500/50
-        rounded-2xl px-3 py-2 shadow-2xl shadow-pink-500/20
+        fixed top-[60px] left-3 z-30
+        flex items-center gap-1.5
+        bg-black/75 backdrop-blur-md border border-orange-500/40
+        rounded-2xl pl-1.5 pr-3 py-1.5 shadow-lg
         transition-all duration-300 hover:scale-105 active:scale-95
-        ${pulse ? "scale-110 border-pink-400 shadow-pink-400/40" : ""}
+        ${pulse ? "scale-110 border-orange-400 shadow-orange-400/50" : ""}
       `}
       style={{
-        boxShadow: `0 0 20px rgba(236, 72, 153, ${0.2 + pct * 0.003})`,
+        boxShadow: `0 0 16px rgba(249, 115, 22, ${0.25 + pct * 0.003})`,
       }}
+      title="Freaky Score – tap to reveal"
     >
-      {/* Freaky label */}
-      <span className="text-pink-400 text-[9px] font-bold uppercase tracking-widest mb-0.5">
-        Freaky Score
-      </span>
-
-      {/* Score number */}
+      {/* Animated flame */}
       <span
-        className={`text-2xl font-black ${tier.color} tabular-nums leading-none`}
-        style={{ textShadow: "0 0 10px currentColor" }}
+        className="text-xl leading-none animate-bounce"
+        style={{ animationDuration: "1.4s", filter: "drop-shadow(0 0 6px #f97316)" }}
       >
-        {score}
+        🔥
       </span>
 
-      {/* Tier label */}
-      <div className="flex items-center gap-0.5 mt-0.5">
-        <span className="text-base leading-none">{tier.emoji}</span>
-        <span className={`text-[10px] font-bold ${tier.color}`}>{tier.label}</span>
+      {/* Score */}
+      <div className="flex flex-col items-start leading-none">
+        <span className="text-[9px] text-orange-300 font-bold uppercase tracking-widest">
+          Freaky
+        </span>
+        <span
+          className={`text-lg font-black ${tier.color} tabular-nums`}
+          style={{ textShadow: "0 0 8px currentColor", lineHeight: 1 }}
+        >
+          {score}
+        </span>
       </div>
 
-      {/* Progress bar */}
-      <div className="mt-1.5 w-full h-1 bg-white/10 rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-
-      {/* Answered count */}
-      <span className="text-white/40 text-[9px] mt-1">
-        {totalAnswered}/{totalQuestions} answered • tap to reveal
-      </span>
+      {/* Tier emoji */}
+      <span className="text-sm leading-none">{tier.emoji}</span>
     </button>
   );
 }

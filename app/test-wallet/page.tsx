@@ -1,29 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import {
-  Wallet,
-  ConnectWallet,
-  WalletDropdown,
-  WalletDropdownDisconnect,
-} from '@coinbase/onchainkit/wallet';
-import {
-  Identity,
-  Name,
-  Avatar,
-  Address,
-  EthBalance,
-} from '@coinbase/onchainkit/identity';
-import {
-  Transaction,
-  TransactionButton,
-  TransactionStatus,
-  TransactionStatusAction,
-  TransactionStatusLabel,
-} from '@coinbase/onchainkit/transaction';
+import { useAccount, useConnect, useDisconnect, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
 import { apiClient } from '../../lib/api-client';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { WalletButton } from '../components/WalletButton';
 
 export default function WalletTestPage() {
   const { address, isConnected } = useAccount();
@@ -63,21 +44,18 @@ export default function WalletTestPage() {
   };
 
   // Test transaction (sending 0 ETH to self)
-  const transactionCalls = address ? [
-    {
-      to: address,
-      data: "0x" as `0x${string}`,
-      value: BigInt(0),
-    },
-  ] : [];
+  const { sendTransaction, data: txHash, isPending: isTxPending, error: txError } = useSendTransaction();
+  const { isLoading: isConfirming, isSuccess: txSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
-  const handleTransactionSuccess = (response: any) => {
-    const hash = response.transactionReceipts?.[0]?.transactionHash;
-    setTransactionTest(`Transaction Success: ${hash}`);
-  };
-
-  const handleTransactionError = (error: any) => {
-    setTransactionTest(`Transaction Error: ${error.message || error}`);
+  const handleSendTestTransaction = () => {
+    if (!address) return;
+    sendTransaction(
+      { to: address, value: BigInt(0) },
+      {
+        onSuccess: (hash) => setTransactionTest(`Transaction Success: ${hash}`),
+        onError: (err) => setTransactionTest(`Transaction Error: ${err.message}`),
+      }
+    );
   };
 
   return (
@@ -100,20 +78,7 @@ export default function WalletTestPage() {
           <h2 className="text-xl font-semibold mb-4">Wallet Connection</h2>
           
           <div className="mb-4">
-            <Wallet>
-              <ConnectWallet>
-                <Name className="text-inherit" />
-              </ConnectWallet>
-              <WalletDropdown>
-                <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                  <Avatar />
-                  <Name />
-                  <Address />
-                  <EthBalance />
-                </Identity>
-                <WalletDropdownDisconnect />
-              </WalletDropdown>
-            </Wallet>
+            <WalletButton />
           </div>
 
           <div className="space-y-2 text-sm">
@@ -148,17 +113,15 @@ export default function WalletTestPage() {
           
           {address ? (
             <div className="space-y-4">
-              <Transaction
-                calls={transactionCalls}
-                onSuccess={handleTransactionSuccess}
-                onError={handleTransactionError}
+              <button
+                onClick={handleSendTestTransaction}
+                disabled={isTxPending || isConfirming}
+                className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg"
               >
-                <TransactionButton className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg" />
-                <TransactionStatus>
-                  <TransactionStatusAction />
-                  <TransactionStatusLabel />
-                </TransactionStatus>
-              </Transaction>
+                {isTxPending ? 'Waiting for approval…' : isConfirming ? 'Confirming…' : 'Send Test Transaction'}
+              </button>
+              {txSuccess && <p className="text-green-600 text-sm">✅ Confirmed: {txHash}</p>}
+              {txError && <p className="text-red-600 text-sm">❌ {txError.message}</p>}
               
               <div className="bg-gray-100 p-4 rounded-lg">
                 <p className="text-sm font-mono">{transactionTest || 'Click button to test transaction'}</p>

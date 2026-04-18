@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { apiClient } from '../../lib/api-client';
 import { dataPersistence } from '../../lib/data-persistence';
-import { ConnectWallet, Wallet, WalletDropdown } from '@coinbase/onchainkit/wallet';
-import { Identity, Avatar, Name, Address } from '@coinbase/onchainkit/identity';
+import { WalletButton } from '../components/WalletButton';
 import { useAccount } from 'wagmi';
 
 interface PrivacySettings {
@@ -267,30 +266,13 @@ export default function PrivacyTestPage() {
         {/* Wallet Connection Status */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-semibold mb-4">Wallet Connection</h2>
-          {isConnected ? (
-            <div className="space-y-4">
-              <Wallet>
-                <Identity address={walletAddress as `0x${string}`} schemaId="0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9">
-                  <Avatar />
-                  <Name />
-                  <Address />
-                </Identity>
-                <WalletDropdown>
-                  <Identity address={walletAddress as `0x${string}`} schemaId="0xf8b05c79f090979bf4a80270aba232dff11a10d9ca55c4f88de95317970f0de9">
-                    <Avatar />
-                    <Name />
-                    <Address />
-                  </Identity>
-                </WalletDropdown>
-              </Wallet>
-              <p className="text-green-600">✅ Wallet Connected: {walletAddress}</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <ConnectWallet />
-              <p className="text-red-600">❌ No wallet connected</p>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            <WalletButton />
+            {isConnected
+              ? <p className="text-green-600">✅ Wallet Connected: {walletAddress}</p>
+              : <p className="text-red-600">❌ No wallet connected</p>
+            }
+          </div>
         </div>
 
         {/* Sync Status */}

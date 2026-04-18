@@ -142,43 +142,92 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
   const [currentRelationshipIndex, setCurrentRelationshipIndex] = useState(-1);
   const [relationshipRatings, setRelationshipRatings] = useState<{[key: string]: RatingType}>({});
   const [isSequentialRating, setIsSequentialRating] = useState(false);
+  const [clickedRelationshipName, setClickedRelationshipName] = useState<string | null>(null);
+  const circleLastTap = useRef<{[name: string]: number}>({});
   // Removed unused showBettingModal state - using showBettingModal2 in SwipeStack
   const { placeBet, loading: bettingLoading, error: bettingError, clearError } = useBettingContract();
   const cardRef = useRef<HTMLDivElement>(null);
   const startPos = useRef({ x: 0, y: 0 });
+  const startTime = useRef(0);
+  const lastTapTime = useRef(0);
+  const dragStarted = useRef(false); // true once drag threshold exceeded
+
+  // ─── Touch handlers ────────────────────────────────────────────────────────
 
   const handleTouchStart = (e: React.TouchEvent) => {
     if (!isActive) return;
-    setIsDragging(true);
     const touch = e.touches[0];
     startPos.current = { x: touch.clientX, y: touch.clientY };
+    startTime.current = Date.now();
+    dragStarted.current = false;
+    setIsDragging(false);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging || !isActive) return;
+    if (!isActive) return;
     const touch = e.touches[0];
     const deltaX = touch.clientX - startPos.current.x;
     const deltaY = touch.clientY - startPos.current.y;
-    setDragOffset({ x: deltaX, y: deltaY });
+
+    // Start tracking drag only after 8px movement
+    if (!dragStarted.current && Math.max(Math.abs(deltaX), Math.abs(deltaY)) > 8) {
+      dragStarted.current = true;
+    }
+    if (!dragStarted.current) return;
+
+    const isHorizontal = Math.abs(deltaX) > Math.abs(deltaY);
+    if (isHorizontal) {
+      // Prevent page scroll during horizontal card swipe
+      e.preventDefault();
+      setIsDragging(true);
+      setDragOffset({ x: deltaX, y: deltaY * 0.2 }); // slight vertical lean
+    } else {
+      // Vertical swipe → navigate images
+      if (Math.abs(deltaY) > 30 && !isDragging) {
+        if (deltaY < 0) nextImage();
+        else prevImage();
+        dragStarted.current = false; // consume vertical, don't start drag
+      }
+    }
   };
 
-  const handleTouchEnd = () => {
-    if (!isDragging || !isActive) return;
-    setIsDragging(false);
-    
-    const threshold = 100;
-    if (Math.abs(dragOffset.x) > threshold) {
-      const direction = dragOffset.x > 0 ? 'right' : 'left';
-      onSwipe(direction, cardData!.id);
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!isActive) return;
+    const elapsed = Date.now() - startTime.current;
+    const deltaX = Math.abs(dragOffset.x);
+    const now = Date.now();
+
+    if (isDragging) {
+      // Swipe gesture
+      setIsDragging(false);
+      const threshold = 80;
+      if (Math.abs(dragOffset.x) > threshold) {
+        const direction = dragOffset.x > 0 ? 'right' : 'left';
+        onSwipe(direction, cardData!.id);
+      }
+      setDragOffset({ x: 0, y: 0 });
+    } else if (!dragStarted.current && elapsed < 300) {
+      // TAP — check double-tap
+      const timeSinceLastTap = now - lastTapTime.current;
+      if (timeSinceLastTap < 350) {
+        // Double-tap → open rating system
+        handleRateClick();
+        lastTapTime.current = 0;
+      } else {
+        lastTapTime.current = now;
+      }
     }
-    
-    setDragOffset({ x: 0, y: 0 });
+
+    dragStarted.current = false;
   };
+
+  // ─── Mouse handlers (desktop fallback) ────────────────────────────────────
 
   const handleMouseStart = (e: React.MouseEvent) => {
     if (!isActive) return;
     setIsDragging(true);
     startPos.current = { x: e.clientX, y: e.clientY };
+    dragStarted.current = true;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -191,14 +240,13 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
   const handleMouseEnd = () => {
     if (!isDragging || !isActive) return;
     setIsDragging(false);
-    
     const threshold = 100;
     if (Math.abs(dragOffset.x) > threshold) {
       const direction = dragOffset.x > 0 ? 'right' : 'left';
       onSwipe(direction, cardData!.id);
     }
-    
     setDragOffset({ x: 0, y: 0 });
+    dragStarted.current = false;
   };
 
   const nextImage = () => {
@@ -273,18 +321,29 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
   };
 
   const handleRelationshipClick = async (relationshipName: string) => {
-    try {
-      const result = await handleProfileClick(relationshipName);
-      
-      if (result.type === 'profile' && result.profileId) {
-        navigateToProfile(result.profileId);
-      } else {
-        navigateToAddProfile(result.profileName);
+    const now = Date.now();
+    const last = circleLastTap.current[relationshipName] || 0;
+    const isDoubleTap = now - last < 350;
+    circleLastTap.current[relationshipName] = isDoubleTap ? 0 : now;
+
+    if (isDoubleTap) {
+      // Double click → navigate to that person's profile
+      try {
+        const result = await handleProfileClick(relationshipName);
+        if (result.type === 'profile' && result.profileId) {
+          navigateToProfile(result.profileId);
+        } else {
+          navigateToAddProfile(result.profileName);
+        }
+      } catch (error) {
+        navigateToAddProfile(relationshipName);
       }
-    } catch (error) {
-      console.error('Error handling relationship click:', error);
-      // Fallback to add profile page
-      navigateToAddProfile(relationshipName);
+    } else {
+      // Single click → open rating modal for this specific person
+      setClickedRelationshipName(relationshipName);
+      setIsSequentialRating(false);
+      setCurrentRelationshipIndex(-1);
+      setShowRatingSystem(true);
     }
   };
 
@@ -295,13 +354,16 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
       <div
         ref={cardRef}
         data-profile-id={dataProfileId || cardData!.id}
-        className={`absolute inset-0 bg-white rounded-2xl shadow-2xl overflow-hidden cursor-grab transition-transform duration-200 ${
-          isDragging ? 'cursor-grabbing scale-105' : ''
+        className={`absolute inset-0 bg-white rounded-2xl shadow-2xl overflow-hidden cursor-grab transition-transform duration-200 select-none ${
+          isDragging ? 'cursor-grabbing' : ''
         } ${isNFT ? 'border-4 border-gradient-to-r from-yellow-400 to-orange-500' : ''}`}
         style={{
           transform: `translateX(${dragOffset.x}px) translateY(${dragOffset.y}px) rotate(${rotation}deg)`,
           opacity: opacity,
           zIndex: zIndex,
+          touchAction: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
           ...style
         }}
         onTouchStart={handleTouchStart}
@@ -427,7 +489,7 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
                     >
                       ›
                     </button>
-                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex space-x-1">
+                    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 flex space-x-1 hidden">
                       {profile!.images?.map((_, index) => (
                         <div
                           key={index}
@@ -486,7 +548,7 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
         )}
         
         {/* Floating Famous Person Circle */}
-        <div className="absolute top-24 right-4 z-30">
+        <div className="absolute top-24 right-4 z-30" onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
           {/* Show Sean Combs circle only for profiles connected to him */}
           {relationships.some(rel => rel.name === 'Sean "Diddy" Combs') ? (
             <FloatingSeanCombs />
@@ -504,71 +566,65 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
           )}
         </div>
         
-        {/* Floating Relationship Circles */}
+        {/* Floating Relationship Circles — multi-column grid so all fit */}
         {relationships.length > 0 && (
-          <div className="absolute top-28 right-4 flex flex-col items-end space-y-1 z-20 max-h-[calc(66.67%-8rem)]">
+          <div className="absolute top-44 right-1 z-20 flex flex-col items-end" style={{ bottom: '34%' }}>
             {(() => {
-              // Calculate dynamic size based on available space and number of relationships
-              const availableHeight = window.innerHeight * 0.4; // Approximate available space
-              const maxRelationships = Math.min(relationships.length, 8); // Limit to prevent overcrowding
-              const baseSize = Math.max(24, Math.min(40, (availableHeight - (maxRelationships * 4)) / maxRelationships)); // Dynamic size between 24px and 40px
-              const iconSize = `${baseSize}px`;
-              const fontSize = `${Math.max(8, baseSize * 0.3)}px`;
-              
-              return relationships.slice(0, maxRelationships).map((relationship, index) => (
+              const cols = relationships.length > 9 ? 3 : 2;
+              const iconSize = 28; // px — slightly smaller circles
+              const gap = 3; // px gap between circles
+              // Group relationships into rows for the grid (right-to-left columns)
+              return (
                 <div
-                  key={index}
-                  className="relative group cursor-pointer"
                   style={{
-                    animation: `float ${2 + index * 0.5}s ease-in-out infinite`,
-                    animationDelay: `${index * 0.2}s`
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${cols}, ${iconSize}px)`,
+                    gap: `${gap}px`,
+                    direction: 'rtl' // fills right column first so it hugs the card edge
                   }}
-                  onClick={() => handleRelationshipClick(relationship.name)}
                 >
-                  <div 
-                    className="rounded-full overflow-hidden border-2 border-pink-400 shadow-lg bg-gradient-to-br from-pink-400 to-purple-500 hover:scale-110 transition-transform"
-                    style={{
-                      width: iconSize,
-                      height: iconSize
-                    }}
-                  >
-                    {relationship.image ? (
-                      <img
-                        src={relationship.image}
-                        alt={relationship.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          // Hide the image and show fallback when image fails to load
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          const fallback = target.nextElementSibling as HTMLElement;
-                          if (fallback) fallback.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    <div 
-                      className="w-full h-full flex items-center justify-center text-white font-bold"
-                      style={{ 
-                        fontSize,
-                        display: relationship.image ? 'none' : 'flex'
-                      }}
+                  {relationships.map((relationship, index) => (
+                    <div
+                      key={index}
+                      className="relative group cursor-pointer"
+                      style={{ direction: 'ltr' }}
+                      onClick={(e) => { e.stopPropagation(); handleRelationshipClick(relationship.name); }}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                     >
-                      {relationship.name.charAt(0)}
+                      <div
+                        className="rounded-full overflow-hidden border-2 border-pink-400 shadow-md bg-gradient-to-br from-pink-400 to-purple-500 hover:scale-110 transition-transform"
+                        style={{ width: iconSize, height: iconSize }}
+                      >
+                        {relationship.image ? (
+                          <img
+                            src={relationship.image}
+                            alt={relationship.name}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) fallback.style.display = 'flex';
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className="w-full h-full flex items-center justify-center text-white font-bold"
+                          style={{ fontSize: 10, display: relationship.image ? 'none' : 'flex' }}
+                        >
+                          {relationship.name.charAt(0)}
+                        </div>
+                      </div>
+                      {/* Tooltip */}
+                      <div className="absolute bottom-full right-0 mb-1 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                        {relationship.name}
+                      </div>
                     </div>
-                  </div>
-                  {/* Tooltip */}
-                  <div className="absolute bottom-full right-0 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-                    {relationship.name}
-                  </div>
+                  ))}
                 </div>
-              ));
-            })()
-            }
-            {relationships.length > 8 && (
-              <div className="text-xs text-gray-500 font-medium mt-1">
-                +{relationships.length - 8} more
-              </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>
@@ -740,13 +796,17 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
           <div className="bg-white/95 backdrop-blur-md rounded-3xl p-6 mx-4 shadow-2xl border border-white/30 max-w-sm w-full">
             <div className="text-center mb-4">
               <h3 className="text-xl font-bold text-gray-900 mb-2">
-                {isSequentialRating && currentRelationshipIndex >= 0 && relationships[currentRelationshipIndex]
+                {clickedRelationshipName
+                  ? `Rate ${clickedRelationshipName}`
+                  : isSequentialRating && currentRelationshipIndex >= 0 && relationships[currentRelationshipIndex]
                   ? `Rate ${relationships[currentRelationshipIndex].name}`
                   : `Rate ${profile!.name}`
                 }
               </h3>
               <p className="text-sm text-gray-600">
-                {isSequentialRating && currentRelationshipIndex >= 0 && relationships[currentRelationshipIndex]
+                {clickedRelationshipName
+                  ? `How would you categorize the relationship with ${profile!.name}?`
+                  : isSequentialRating && currentRelationshipIndex >= 0 && relationships[currentRelationshipIndex]
                   ? `How would you categorize the relationship with ${profile!.name}?`
                   : 'How would you categorize your relationship?'
                 }
@@ -755,9 +815,12 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
             
             <RatingSystem
               profileId={profile!.id}
-              onRate={handleRatingComplete}
+              onRate={(profileId, rating) => {
+                handleRatingComplete(profileId, rating);
+                setClickedRelationshipName(null);
+              }}
               disabled={false}
-              profileName={profile!.name}
+              profileName={clickedRelationshipName || profile!.name}
               relationships={relationships}
               currentRelationshipIndex={isSequentialRating ? currentRelationshipIndex : -1}
               onRelationshipRated={handleRelationshipRated}
@@ -765,7 +828,7 @@ export function SwipeCard({ profile, nft, onSwipe, onRate, onBuyNFT, isActive, z
             
             <div className="flex justify-center mt-4">
               <button
-                onClick={() => setShowRatingSystem(false)}
+                onClick={() => { setShowRatingSystem(false); setClickedRelationshipName(null); }}
                 className="text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
               >
                 Cancel

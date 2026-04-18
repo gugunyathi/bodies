@@ -182,7 +182,7 @@ export function SwipeStack({
   }
 
   return (
-    <div className="relative w-full h-[600px] max-w-sm mx-auto">
+    <div className="relative w-full h-full">
       {cardsToShow.map((card, index) => {
         const isNFT = 'type' in card && card.type === 'nft';
         const isQuestion = 'type' in card && card.type === 'question';
@@ -233,8 +233,8 @@ export function SwipeStack({
         );
       })}
       
-      {/* Progress indicator */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+      {/* Progress indicator – hidden visually, preserved for logic reference */}
+      <div className="sr-only" aria-live="polite" aria-label={`Card ${currentIndex + 1} of ${availableCards.length}`}>
         {currentIndex + 1} / {availableCards.length}
       </div>
     </div>
